@@ -18,7 +18,7 @@ class SystemController:
                  experiment: Experiment
                  ):
         
-        log.info('SystemController created')
+        log.info('SystemController initialized')
         
         self._connection = ZmqServer(
             port_pub=port_pub,
@@ -36,7 +36,7 @@ class SystemController:
         self._reinit_in_progress = False
 
     def run(self) -> None:
-        log.info("Waiting for all required components to register before starting system...")
+        log.info("Waiting for all required components to register ...")
         
         required_generator = True
         required_ris_ids = list(Parameters().get().rises.keys())
@@ -71,6 +71,7 @@ class SystemController:
         while not self._system_logic.finished():
             self._connection.receive_messages(self._handle_message_received)
             self._generate_messages()
+        log.info("Experiment finished. Broadcast DONE")
         self._broadcast_action("done")
 
         
@@ -83,9 +84,10 @@ class SystemController:
 
         if generator_request is not None:
             if generator_request == Parameters().get().generator:
-                log.debug('skip - generator configuration the same')
+                log.debug('Skipping generator config update - no change detected.')
                 self._system_logic.generator.received_ready('0')
             else:
+                log.info("Updating generator configuration.")
                 Parameters().get().generator = generator_request 
                 self._send_message({
                     'component':'generator', 
@@ -101,9 +103,10 @@ class SystemController:
         if rises_requests is not None:
             for ris_id, ris_request in rises_requests.items():
                 if ris_request == Parameters().get().rises[ris_id]:
-                    log.debug('skip - RIS {} configuration the same', ris_id)
+                    log.debug(f"Skipping RIS {ris_id} config update - no change detected.")
                     self._system_logic.rises.received_ready(ris_id)
                 else:
+                    log.info(f"Updating RIS {ris_id} configuration.")
                     Parameters().get().rises[ris_id] = ris_request
                     log.debug('set RIS {} pattern {}', ris_id, ris_request.pattern)
                     self._send_message({

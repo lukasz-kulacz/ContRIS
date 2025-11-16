@@ -26,10 +26,10 @@ class RxController(Controller):
                 out = subprocess.check_output(["uhd_find_devices"], text=True)
                 serials = re.findall(r"serial=(\w+)", out)
 
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning(f"Could not execute uhd_find_devices: {e}")
         except Exception:
-                pass
+            log.debug("UHD module not available.")
         
     def _init_usrp_from_params(self) -> bool:
         global usrp
@@ -44,11 +44,11 @@ class RxController(Controller):
                 usrp_args = params.get_usrp_args(self._component_id)
                 usrp = uhd.usrp.MultiUSRP(usrp_args) 
                 self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
-                log.info("USRP zainicjalizowany ponownie.")
+                log.info(f"USRP reinitialized successfully (ID: {self._component_id}).")
                 return True
             except Exception as e:
                 self._list_available_usrp_serials()
-                log.error(f"Ponowna inicjalizacja USRP nieudana: {e}")
+                log.error(f"USRP reinitialization failed: {e}")
                 usrp = None
                 return False
     
@@ -63,7 +63,7 @@ class RxController(Controller):
         }
 
         self._send_message(payload)
-        log.warning("Wyslano do main: component-reinit (need_config = True)")
+        log.warning(f"[RX {self._component_id}] Sent reinit request (need_config=True). Reason: {reason}")
         
     def _reset_usrp_with_backoff(self, reason: str) -> bool:
         global usrp
@@ -73,22 +73,23 @@ class RxController(Controller):
         
         self._consecutive_failures += 1
         wait_s = min(2**(self._consecutive_failures - 1), 60)
-        log.warning(f"Resetuje USRP (powod: {reason}). Odczekam {wait_s}")
+        log.warning(f"[RX {self._component_id}] Resetting USRP due to: {reason}. Sleeping {wait_s}s...")
         try:
             del usrp
         except Exception:
             pass
+        
         time.sleep(wait_s)
         ok = self._init_usrp_from_params()
+        
         if ok:
+            log.info(f"[RX {self._component_id}] USRP recovered after reset.")
             self._consecutive_failures = 0
             self._awaiting_reconfig = True
             self._notify_reinit(reason)
         return ok
         
     def _recv_samples_safe(self) -> np.ndarray:
-        "Reset urzadzenia gdy wykryje blad"
-
         global usrp
         
         if self._test_mode:
@@ -113,7 +114,8 @@ class RxController(Controller):
                 return samples
             except Exception as e:
                 msg = str(e)
-                log.error(f"recv_num_samps wyjatek (proba {attempt}/{max_attempts}): {msg}")
+                log.error(f"[RX {self._component_id}] recv_num_samps exception "
+                          f"(attempt {attempt}/{max_attempts}): {msg}")
 
                 transient = any(s in msg for s in[
                     "LIBUSB_TRANSFER_OVERFLOW",
@@ -130,8 +132,7 @@ class RxController(Controller):
                         continue
                 else:
                     raise
-        raise RuntimeError("Nie udalo sie pobrac probek po wielokrotnych probach i resetach")
-
+        raise RuntimeError(f"[RX {self._component_id}] Failed to retrieve samples after multiple attempts.")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -150,7 +151,7 @@ class RxController(Controller):
         self._consecutive_failures = 0 
 
         if self._test_mode:
-            print(f"(TEST) Symuluję połączenie z USRP")
+            log.info(f"(TEST) Simulating USRP connection for RX {self._component_id}")
             self._init_usrp_from_params()
         else:
             #time.sleep(10)
@@ -161,15 +162,15 @@ class RxController(Controller):
                 usrp_args = params.get_usrp_args(self._component_id)
                 try:
                     usrp = uhd.usrp.MultiUSRP(usrp_args)
-                    log.log(f"Polaczylem sie z USRP o id {self._component_id}")
+                    log.info(f"[RX {self._component_id}] Connected to USRP.")
                 except:
                     self._list_available_usrp_serials()
-                    log.warning(f"Brak wpisu USRP dla komponenetu o id= '{self._component_id}'")
+                    log.warning(f"No USRP entry found for RX ID '{self._component_id}'")
 
                 
                 self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
             except Exception as e:
-                log.error(f"Nie udalo sie zainicjalizowac USRP: {e}")
+                log.error(f"[RX {self._component_id}] Failed to initialize USRP: {e}")
                 usrp = None
 
     def _on_message_received(self, message: Dict):
@@ -227,7 +228,6 @@ class RxController(Controller):
             self._N = config['N']
         
         if not self._test_mode:
-
             log.info(f"RX Configured: Frequency = {self._frequency} Hz, Gain = {self._rx_gain} dB, sample rate = {self._samp_rate} S/s")
  
 

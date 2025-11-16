@@ -12,7 +12,7 @@ import zipfile
 
 
 class GeneratorModel(str, Enum):
-    #SMM100A = 'SMM100A' 
+    SMM100A = 'SMM100A' 
     SMBV100A = 'SMBV100A' 
 
 DEFAULT_GENERATOR_IP =  "192.168.8.30"

@@ -17,34 +17,29 @@ class RisController(Controller):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file = os.path.join(base_dir,"config_port/ris_ports.json")
         try:
-            with open(config_file, "r") as f:
-                ris_port_map = json.load(f)
+            port = Parameters().get_ris_port(self._component_id)
         except Exception as e:
-            raise RuntimeError(f"Can not open file {config_file}: {e}")
+            raise RuntimeError(f"[RIS {self._component_id}] Cannot resolve USB port: {e}")
         
-        port = ris_port_map.get(self._component_id)
-
-        if not port:
-            raise RuntimeError(f"No such id for RIS {self._component_id} in {config_file}")
-        
-        log.info("RIS {} use port {}", self._component_id, port)
+        log.info(f"[RIS {self._component_id}] Using serial port {port}")
 
         if not self._test_mode:
             from serial import Serial
-            self.ser = Serial(port, baudrate=115200, timeout=10)
-            self.ser.flushInput()
-            self.ser.flushOutput()
-            self.id = id
-            self.timeout = 10 
+            try:
+                self.ser = Serial(port, baudrate=115200, timeout=10)
+                self.ser.flushInput()
+                self.ser.flushOutput()
+                log.info(f"[RIS {self._component_id}] Serial connection established.")
+            except Exception as e:
+                raise RuntimeError(f"Failed to open serial port {port}: {e}")
+
+            self.timeout = 10
     
     def _perform_reinit(self) -> None:
         
         if self._test_mode:
-            log.info('(TEST) RIS reinit')
+            log.info(f"(TEST) [RIS {self._component_id}] Reinit simulated.")
             return
         
         try:
@@ -60,26 +55,44 @@ class RisController(Controller):
 
     def _on_message_received(self, message: Dict):
         match message['action']:
+            
             case 'new-ack':
                 self._send_message({'action': 'ready'})
+                
             case 'configure':
                 config = message['data']
                 self._configure_ris(config)
                 self._send_message({'action': 'configure-ack'})
+                
             case 'set-pattern':
                 config = message['data']
-                if self._set_pattern(config.get("pattern").encode("utf-8")):
-                    self._send_message({'action': 'pattern-update', 'data': {'status' : 'success'}})
+                pattern = config.get("pattern")
+
+                if not isinstance(pattern, str):
+                    log.error(f"[RIS {self._component_id}] Invalid pattern format: {pattern}")
+                    self._send_message({'action': 'pattern-update', 'data': {'status': 'failure'}})
+                    return
+
+                log.debug(f"[RIS {self._component_id}] Setting pattern: {pattern}")
+
+                if self._set_pattern(pattern.encode("utf-8")):
+                    log.info(f"[RIS {self._component_id}] Pattern updated successfully.")
+                    self._send_message({'action': 'pattern-update', 'data': {'status': 'success'}})
                 else:
-                    self._send_message({'action': 'pattern-update', 'data': {'status' : 'failure'}})
+                    log.error(f"[RIS {self._component_id}] Pattern update failed.")
+                    self._send_message({'action': 'pattern-update', 'data': {'status': 'failure'}})
+
+                    
             case 'reinit':
                 log.warning('[RIS {}] REINIT requested', self._component_id)
                 self._perform_reinit()
                 self._send_message({'action' : 'new'})
+                
             case 'done':
                 log.warning("[RIS] Finish")
+                
             case _:
-                log.warning('this action is not defined!')
+                log.warning(f"[RIS {self._component_id}] Unknown action received.")
 
     def _configure_ris(self, config: Dict):
         log.info(f"SET {config['index']}: {config['pattern']}")

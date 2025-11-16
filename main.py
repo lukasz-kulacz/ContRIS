@@ -50,8 +50,10 @@ if __name__ == '__main__':
         )
         
         try:
+            log.debug("Running System Controller...")
             controller.run()
         except KeyboardInterrupt:
+            log.warning("Keyboard interrupt received. Shutting down controller...")
             controller._broadcast_action("done")
             
     elif 2 <= len(sys.argv) <= 3:
@@ -71,6 +73,7 @@ if __name__ == '__main__':
                     test_mode=TEST_MODE
                 )
                 
+                log.debug("Running controller...")
                 controller.run()
             except RestartRequired:
                 log.info("Restarting {} controller...", controller_type)

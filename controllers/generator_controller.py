@@ -19,30 +19,28 @@ class GeneratorController(Controller):
         params = Parameters().get().generator 
         
         self._model = params.model
-        self._con  = params.connection
+        self._ip_address = params.connection.ip
+        self._port = params.connection.port
+        #self._mode = params.connection.mode
+        self._connection_type  = params.connection.connection_type
         
-        if self._con:
-            self._mode = self._con.mode
-            self._generator_model = self._con.generator_model
-            self._frequency = self._con.frequency
-            self._transmit_power = self._con.transmit_power
-            self._transmission_enabled = self._con.transmission_enabled
-            self._ip_address = self._con.ip_address
-            self._port = self._con.port
-            self._connection_type = self._con.connection_type
+        self._frequency = params.settings.frequency
+        self._transmit_power = params.settings.transmit_power
+        self._transmission_enabled = params.settings.transmission_enabled
+        
 
 
         if not self._test_mode:
             try:
                 resource = f'TCPIP::{self._ip_address}::{self._port}::{self._connection_type}'
-                if self._generator_model == "SMM100A":
+                if self._model == GeneratorModel.SMM100A:
                      from RsSmw import RsSmw
                      self._generator = RsSmw(resource, True, False, "SelectVisa='socket'")
-                if self._generator_model == "SMBV100A":
+                if self._model == GeneratorModel.SMBV100A:
                     from RsSmbv import RsSmbv 
                     self._generator = RsSmbv(resource, True, False, "SelectVisa='socket'")
                 
-                log.info(f"[INFO] Connected to generator {self._generator_model} at {resource}")
+                log.info(f"[INFO] Connected to generator {self._model} at {resource}")
             except Exception as e:
                 log.error(f"[ERROR] Error connecting to generator: {e}")
                 exit()
@@ -99,17 +97,17 @@ class GeneratorController(Controller):
             self._transmission_enabled = config['transmission_enabled']
         
         if not self._test_mode and self._generator:
-            if self._generator_model == "SMM100A":
+            if self._model == "SMM100A":
                 self._generator.source.frequency.fixed.set_value(self._frequency)
                 self._generator.source.power.level.immediate.set_amplitude(self._transmit_power)
                 self._generator.output.state.set_value(self._transmission_enabled) 
-            elif self._generator_model == "SMBV100A":
+            elif self._model == "SMBV100A":
                 self._generator.source.frequency.fixed.set_value(self._frequency)
                 self._generator.source.power.level.immediate.set_amplitude(self._transmit_power)
                 self._generator.output.state.set_value(self._transmission_enabled)
 
                 
-            log.info(f"[GENERATOR] {self._generator_model} Configured: Frequency = {self._frequency} Hz, Power = {self._transmit_power} dBm, Enabled = {self._transmission_enabled}")
+            log.info(f"[GENERATOR] {self._model} Configured: Frequency = {self._frequency} Hz, Power = {self._transmit_power} dBm, Enabled = {self._transmission_enabled}")
     
     def _noise(self):
         if self._test_mode:
