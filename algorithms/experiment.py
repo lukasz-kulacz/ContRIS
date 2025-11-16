@@ -1,5 +1,5 @@
 from loguru import logger as log
-from helpers.parameters import Parameters, GeneratorParams, GeneratorConnection
+from helpers.parameters import Parameters, GeneratorConfig
 import numpy as np
 from copy import deepcopy
 import os
@@ -12,7 +12,7 @@ class Experiment:
     def finished(self) -> bool:
         raise NotImplementedError
 
-    def generate_generator_params(self) -> GeneratorParams | None:
+    def generate_generator_params(self) -> GeneratorConfig | None:
         raise NotImplementedError
 
     def store_results(self, device_id: str, results) -> None:
@@ -42,7 +42,7 @@ class ExampleExperiment(Experiment):
     def finished(self):
         return self._itr == len(self._power_setup) and not np.isnan(self._data).any()
 
-    def generate_generator_params(self) -> GeneratorParams | None:
+    def generate_generator_params(self) -> GeneratorConfig | None:
         if self._waiting_for > 0:
             return None
 
@@ -51,10 +51,10 @@ class ExampleExperiment(Experiment):
 
         params = deepcopy(Parameters().get().generator)
         if self._power_setup[self._itr] is None:
-            params.connection.transmission_enabled = False
+            params.settings.transmission_enabled = False
         else:
-            params.connection.transmission_enabled = True
-            params.connection.transmit_power = self._power_setup[self._itr]
+            params.settings.transmission_enabled = True
+            params.settings.transmit_power = self._power_setup[self._itr]
 
         self._waiting_for = self._rx_count
 

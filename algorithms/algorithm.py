@@ -1,6 +1,6 @@
 from loguru import logger as log
 from typing import Tuple, Dict
-from helpers.parameters import Parameters, GeneratorParams, RisParams
+from helpers.parameters import Parameters, GeneratorConfig, RisParams
 import numpy as np
 from copy import deepcopy
 import os
@@ -16,7 +16,7 @@ class Algorithm:
     def data_collection_finished(self) -> bool:
         raise NotImplementedError
 
-    def data_collection_request(self) -> Tuple[GeneratorParams, Dict[str, RisParams]] | None:
+    def data_collection_request(self) -> Tuple[GeneratorConfig, Dict[str, RisParams]] | None:
         raise NotImplementedError
 
     def algorithm_step(self) -> Dict[str, RisParams]:
@@ -97,16 +97,16 @@ class ExampleAlgorithm(Algorithm):
     def data_collection_finished(self):
         return not np.isnan(self.data).any()
 
-    def data_collection_request(self) -> Tuple[GeneratorParams, Dict[str, RisParams]] | None:
+    def data_collection_request(self) -> Tuple[GeneratorConfig, Dict[str, RisParams]] | None:
         if self.waiting_for > 0: 
             return None
 
         generator_params = deepcopy(Parameters().get().generator)
         if self.signal_power[self.signal_power_itr] is None:
-            generator_params.connection.transmission_enabled = False
+            generator_params.settings.transmission_enabled = False
         else:
-            generator_params.connection.transmission_enabled = True
-            generator_params.connection.transmit_power = self.signal_power[self.signal_power_itr]
+            generator_params.settings.transmission_enabled = True
+            generator_params.settings.transmit_power = self.signal_power[self.signal_power_itr]
 
         ris_params = deepcopy(Parameters().get().rises)
         if self._ris_count == 1:

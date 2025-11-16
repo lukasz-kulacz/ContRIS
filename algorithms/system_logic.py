@@ -1,7 +1,7 @@
 import numpy as np
 from loguru import logger as log
 from typing import List, Dict, Tuple
-from helpers.parameters import Parameters, GeneratorParams, RisParams
+from helpers.parameters import Parameters, GeneratorConfig, RisParams
 from algorithms.algorithm import Algorithm
 from algorithms.experiment import Experiment
 
@@ -34,8 +34,8 @@ class GeneratorHandler(DeviceHandler):
         self._id = device_id
         self._config = {
             'frequency': Parameters().get().frequency,
-            'transmit_power': Parameters().get().generator.connection.transmit_power,
-            'transmission_enabled': Parameters().get().generator.connection.transmission_enabled
+            'transmit_power': Parameters().get().generator.settings.transmit_power,
+            'transmission_enabled': Parameters().get().generator.settings.transmission_enabled
         }
         return self._config
 
@@ -128,7 +128,7 @@ class SystemLogic:
         
         return True
         
-    def generate_configuration_change_requests(self) -> Tuple[GeneratorParams | None, Dict[str, RisParams] | None]:
+    def generate_configuration_change_requests(self) -> Tuple[GeneratorConfig | None, Dict[str, RisParams] | None]:
         if not self.ready() or self._measurment_queued:
             return (None, None)
 

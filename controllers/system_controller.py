@@ -93,8 +93,8 @@ class SystemController:
                     'data': {
                     
                         'frequency': Parameters().get().frequency,
-                        'transmit_power': Parameters().get().generator.connection.transmit_power,
-                        'transmission_enabled': Parameters().get().generator.connection.transmission_enabled
+                        'transmit_power': Parameters().get().generator.settings.transmit_power,
+                        'transmission_enabled': Parameters().get().generator.settings.transmission_enabled
                     
                     }})
 

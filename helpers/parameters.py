@@ -9,7 +9,7 @@ import pandas as pd
 from datetime import datetime
 from loguru import logger as log
 import zipfile
-from serial.tools import list_ports
+#from serial.tools import list_ports
 
 
 
@@ -26,7 +26,7 @@ DEFAULT_GENERATOR_MODEL = GeneratorModel.SMBV100A
 class GeneratorSettings(BaseModel):
     frequency: float = 5e9
     transmit_power: float = -20.0
-    enabled: bool = True
+    transmission_enabled: bool = True
     
 class GeneratorConnection(BaseModel):
     model: GeneratorModel = DEFAULT_GENERATOR_MODEL
@@ -147,40 +147,43 @@ class Parameters(metaclass=SingletonMeta):
 
     def __init__(self):
         self.data = Params()
-        self._ris_port_map = self._scan_usb_ports()
+    #    self._ris_port_map = self._scan_usb_ports()
         #self._ris_available_ports =  self._scan_usb_ports()
 
-        for ris_id in self.data.rises:
-            try:
-                port = self.get_ris_port(ris_id)
-                log.info("RIS {} przypisany do portu: {}", ris_id, port)
-            except RuntimeError as e:
-                log.error("Błąd przypisania portu do RIS {}: {}", ris_id, e)
+    #     for ris_id in self.data.rises:
+    #         try:
+    #             port = self.get_ris_port(ris_id)
+    #             log.info("RIS {} przypisany do portu: {}", ris_id, port)
+    #         except RuntimeError as e:
+    #             log.error("Błąd przypisania portu do RIS {}: {}", ris_id, e)
 
     def get(self):
-        return self.data
+         return self.data
     
-    def get_ris_port(self, component_id: str) -> str:
-        if component_id not in self._ris_port_map:
-            raise RuntimeError(
-                f'Bral portu USB dla RIS {component_id}.'
-                f"Sprawdz numer seryjny w RIS_SERIAL_MAP."
-            )
-        return self._ris_port_map[component_id]
+    # def get_ris_port(self, component_id: str) -> str:
+    #     if component_id not in self._ris_port_map:
+    #         raise RuntimeError(
+    #             f'Bral portu USB dla RIS {component_id}.'
+    #             f"Sprawdz numer seryjny w RIS_SERIAL_MAP."
+    #         )
+    #     return self._ris_port_map[component_id]
     
-    def _scan_usb_ports(self):
-        ports = list_ports.comports()
-        result = {}
-        for p in ports:
-            if p.serial_number is None:
-                continue
+    # def _scan_usb_ports(self):
+    #     ports = list_ports.comports()
+    #     result = {}
+    #     for p in ports:
+    #         if p.serial_number is None:
+    #             continue
             
-            for ris_id, excepted_serial in RIS_SERIAL_MAP.items():
-                if p.serial_number == excepted_serial:
-                    result[ris_id] = p.device
-                    log.info(f"RIS {ris_id} wykryty na porcie {p.device} (serial = {p.serial_number})")
+    #         for ris_id, excepted_serial in RIS_SERIAL_MAP.items():
+    #             if p.serial_number == excepted_serial:
+    #                 result[ris_id] = p.device
+    #                 log.info(f"RIS {ris_id} wykryty na porcie {p.device} (serial = {p.serial_number})")
                     
-        return result
+    #     return result
+    
+    
+    #======================================================
     # def get_ris_port(self, component_id: str) -> str:
     #     if component_id in self._ris_port_map:
     #         return self._ris_port_map[component_id]

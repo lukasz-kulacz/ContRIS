@@ -6,7 +6,7 @@ import time
 from typing import Dict, Callable
 from helpers.zmq_connection import ZmqClient
 from controllers.controller import Controller
-from helpers.parameters import GeneratorParams, Parameters, GeneratorModel
+from helpers.parameters import GeneratorConfig, Parameters, GeneratorModel
 
 
 class GeneratorController(Controller):
