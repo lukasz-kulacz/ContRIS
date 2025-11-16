@@ -9,9 +9,6 @@ import pandas as pd
 from datetime import datetime
 from loguru import logger as log
 import zipfile
-#from serial.tools import list_ports
-
-
 
 
 class GeneratorModel(str, Enum):
@@ -83,17 +80,6 @@ class GeneratorConfig(BaseModel):
 #         "arbitrary_types_allowed" : True
 #     }
 
-
-
-
-class RxParams(BaseModel):
-    samp_rate: float = 500e3 # 8e6
-    rx_gain: float = 40.0
-    count: int = 1
-    buffer_size: int = int(40e3) #32768 #int(1e6) #1024
-    N: int = 1
-
-
 class UsrpParams(BaseModel):
     serial_map: Dict[str, str] = Field(default={
             '0' : '3273ADC',
@@ -104,6 +90,15 @@ class UsrpParams(BaseModel):
     def args_for(self, component_id: str) -> Optional[str]:
         ser = self.serial_map.get(component_id)
         return self.agrs_template.format(serial=ser) if ser else None
+
+
+class RxParams(BaseModel):
+    samp_rate: float = 500e3 # 8e6
+    rx_gain: float = 40.0
+    count: int = 1
+    buffer_size: int = int(40e3) #32768 #int(1e6) #1024
+    N: int = 1
+
 
 class RisParams(BaseModel):
     pattern: str = None
@@ -117,6 +112,18 @@ RIS_SERIAL_MAP = {
 
 class Params(BaseModel):
 
+    frequency: float = 5e9
+    #generator: GeneratorParams = GeneratorParams(model = DEFAULT_GENERATOR_MODEL)
+    generator: GeneratorConfig = GeneratorConfig()
+    rxes: RxParams = RxParams()
+    usrp: UsrpParams = UsrpParams()
+    
+    rises: Dict[str, RisParams] = Field(default={
+        '0': RisParams(),
+        # '1': RisParams()
+        
+    })
+    
     def get_usrp_args(self, component_id: str) -> str:
         args = self.usrp.args_for(component_id)
         if not args:
@@ -125,19 +132,6 @@ class Params(BaseModel):
                 f"Dodaj go w parametrs.py -> UsrpParams.serial_map"
             )
         return args
-    
-    frequency: float = 5e9
-    #generator: GeneratorParams = GeneratorParams(model = DEFAULT_GENERATOR_MODEL)
-    generator: GeneratorConfig = GeneratorConfig()
-    rxes: RxParams = RxParams()
-    usrp: UsrpParams = UsrpParams()
-    rises: Dict[str, RisParams] = Field(default={
-        '0': RisParams(),
-        # '1': RisParams()
-        
-        
-        
-    })
 
 
 
@@ -202,15 +196,4 @@ class Parameters(metaclass=SingletonMeta):
     #     usb_ports.sort()
     #     return usb_ports
 
-    def save_experyment_result_csv(self, data: np.ndarray) -> None:
-        results_dir = "results"
-        os.makedirs(results_dir, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        rx_count = data.shape[0]
-
-        for rx in range(rx_count):
-            filename = os.path.join(results_dir, f"experiment_result_rx_{rx}_{timestamp}.csv")
-            df = pd.DataFrame(data[rx, :], columns=["Result"])
-            log.debug("Saved experiment results to {}", filename)
 
