@@ -38,7 +38,6 @@ class Controller:
 
     def _on_message_received_base(self, message: Dict) -> None:
 
-        # READY ack should be received
         if not self._connected:
             if message['action'] == 'new-ack':
                 self._connected = True
@@ -50,11 +49,9 @@ class Controller:
             log.warning('Component {} restarting as requested', self._component_name)
             raise RestartRequired
 
-        # FILTER messages from system controller
         if message['component'] != self._component_name:
             return
 
-        # FILTER individual messages
         if 'id' in message and message['id'] != self._component_id:
             return
 
@@ -64,7 +61,7 @@ class Controller:
     def _send_message(self, message: Dict) -> None:
         message['_id'] = str(self._id)
         message['component'] = self._component_name
-        message['id'] = self._component_id #str(uuid.uuid4())
+        message['id'] = self._component_id 
 
         self._connection.send_message(message)
         print(message)

@@ -29,7 +29,6 @@ class ExampleExperiment(Experiment):
         results_dir: str = "results",
     ):
         self._power_setup: List[Union[float, None]] = power_setup if power_setup is not None else [-15.0]
-        #self._power_setup = [-15.0]
         self._itr = 0
         self._rx_count = Parameters().get().rxes.count
         self._data = np.nan * np.ones((self._rx_count, len(self._power_setup)))

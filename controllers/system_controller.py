@@ -1,7 +1,6 @@
 import zmq
 import numpy as np
 import time
-# from enum import StrEnum
 from typing import Dict, Callable
 from loguru import logger as log
 
@@ -66,42 +65,14 @@ class SystemController:
             
             if time.time() - start_time > timeout_s:
                 log.warning("Timeout: not all components registered within {} s. Sending REINIT to all...", timeout_s)
-                #self._reinit_all_components()
                 self._broadcast_action("reinit")
                 start_time = time.time()
                 
         while not self._system_logic.finished():
             self._connection.receive_messages(self._handle_message_received)
             self._generate_messages()
-        #self._send_finish_message()
         self._broadcast_action("done")
 
-    # def _send_finish_message(self):
-    #     log.info("Send finish message to all components")
-    #     # Generator
-    #     gen_id = self._generator_id or "0"
-    #     self._send_message({
-    #         'component': 'generator',
-    #         'id': gen_id,
-    #         'action': 'done'
-    #     })
-
-    #     # RISy
-    #     ris_ids = sorted(self._ris_ids) if self._ris_ids else list(Parameters().get().rises.keys())
-    #     for rid in ris_ids:
-    #         self._send_message({
-    #             'component': 'ris',
-    #             'id': str(rid),
-    #             'action': 'done'
-    #         })
-    #     # RXy
-    #     rx_count = Parameters().get().rxes.count
-    #     for i in range(rx_count):
-    #         self._send_message({
-    #             'component': 'rx',
-    #             'id': str(i),
-    #             'action': 'done'
-    #         })
         
     def _generate_messages(self):
         if self._system_logic.generate_measurement_command():
@@ -227,13 +198,11 @@ class SystemController:
                 self._reinit_in_progress = True
                 
                 self._broadcast_action("reinit")
-            #           message['id'], message.get('reason'), message.get('need_config'))
-            #     self._broadcast_reinit()
                 
                 if message.get('need_config'):
                     cfg = self._system_logic.rxes.received_new(
                         device_id=message['id'],
-                        unique_id=message.get('_id') #?
+                        unique_id=message.get('_id') 
                     )
                     
                     log.warning('Sending fresh RX config after reinit')
@@ -276,69 +245,4 @@ class SystemController:
                 'action': action
             })
             
-    # def _broadcast_reinit(self) -> None:
-    #     log.warning("Broadcast reinit to all known components")
-
-    #     gen_id = self._generator_id
-    #     log.warning("Broadcast REINIT -> generator id= {} ", gen_id)
-    #     self._send_message({
-    #         'component' : 'generator',
-    #         'id' : gen_id,
-    #         'action' : 'reinit'
-    #     })
-        
-    #     if self._ris_ids:
-    #         for rid in sorted(self._ris_ids):
-    #             log.warning("Broadcast REINIT -> RIS id = {}", rid)
-    #             self._send_message({
-    #                 'component' : 'ris',
-    #                 'id' : rid,
-    #                 'action' : 'reinit'
-    #             })
-    #     else:
-    #         try:
-    #             for rid in Parameters().get().rises.keys():
-    #                 log.warning("Broadcast REINIT (fallback) -> RIS id = {}", rid)
-    #                 self._send_message({
-    #                     'component' : 'ris',
-    #                     'id': str(rid),
-    #                     'action' : 'reinit'
-    #                 })
-    #         except Exception:
-    #             log.warning("No RIS ids known to broadcast reinit")
-    
-    # def _reinit_all_components(self) -> None:
-    #     """Wysyła reinit do generatora, wszystkich RISów i RXów"""
-    #     log.warning("Reinit: restarting all known components (generator, RIS, RX)")
-
-    #     # Generator
-    #     gen_id = self._generator_id or "0"
-    #     self._send_message({
-    #         'component': 'generator',
-    #         'id': gen_id,
-    #         'action': 'reinit'
-    #     })
-
-    #     # RISy
-    #     ris_ids = sorted(self._ris_ids) if self._ris_ids else list(Parameters().get().rises.keys())
-    #     for rid in ris_ids:
-    #         self._send_message({
-    #             'component': 'ris',
-    #             'id': str(rid),
-    #             'action': 'reinit'
-    #         })
-    #         log.warning("Reinit sent -> RIS {}", rid)
-
-    #     # RXy
-    #     rx_count = Parameters().get().rxes.count
-    #     for i in range(rx_count):
-    #         self._send_message({
-    #             'component': 'rx',
-    #             'id': str(i),
-    #             'action': 'reinit'
-    #         })
-    #         log.warning("Reinit sent -> RX {}", i)
-
-
-
 

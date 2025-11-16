@@ -183,7 +183,6 @@ class RxController(Controller):
                 self._configure_rx(config)
                 self._send_message({'action' : 'configure-ack'})
                 self._send_message({'action' : 'ready'})
-                #log.warning("RX {} reinit", self._component_id)
             case 'measure':
                 config = message['data']
                 result = self._measure(config)
@@ -201,15 +200,6 @@ class RxController(Controller):
                 ok = self._init_usrp_from_params()
                 if ok:
                     log.success("[RX {}] USRP reinitialized successfully.", self._component_id)
-                # log.warning('[RX {}] REINIT requested', self._component_id)
-                # self._init_usrp_from_params()
-                # log.success("[RX {}] USRP reinitialized successfully.", self._component_id)
-
-                    # self._send_message({
-                    #     'action': 'new',
-                    #     'component': 'rx',
-                    #     'id': self._component_id
-                    # })
 
             case 'done':
                 log.warning("[RX] Finish")
@@ -222,15 +212,12 @@ class RxController(Controller):
             log.info('(TEST) RX {} configured', self._component_id)
 
         if 'frequency' in config:
-            # set or update frequency
             self._frequency = config['frequency']
 
         if 'samp_rate' in config:
-            # set or update sampling rate
             self._samp_rate = config['samp_rate']
 
         if 'rx_gain' in config:
-            # set or update rx gain
             self._rx_gain = config['rx_gain']
             
         if 'buffer_size' in config:
@@ -252,14 +239,11 @@ class RxController(Controller):
             self._avg_power_history += pow(10.0, result / 10.0) * (1.0 - self._log_history_coeff)
             self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
             log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
-            return [result] #symulation
+            return [result] 
             
         power_measurements = []
         while len(power_measurements) < self._N:
-            #print(self._buffer_size, self._frequency, self._samp_rate, self._rx_gain)
             samples = self._recv_samples_safe()
-            #samples = usrp.recv_num_samps(self._buffer_size, self._frequency, self._samp_rate, [0], self._rx_gain)
-            #samples = [30.0, 12.2,23.0]
             power_lin = np.mean(np.abs(samples) ** 2)
             power_log = 10 * np.log10(power_lin)
             power_measurements.append(float(power_log))

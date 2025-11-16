@@ -72,7 +72,6 @@ class ExampleAlgorithm(Algorithm):
     }
         self.signal_power = signal_power if signal_power is not None else [10.0]
         self._results_dir = results_dir
-        #self.signal_power = [10.0] #5.0, 10.0
 
         if self._ris_count == 1:
             self.configs = np.array(list(self.all_patterns.keys()))
@@ -133,7 +132,6 @@ class ExampleAlgorithm(Algorithm):
         mean_result = float(np.mean(results))
 
 
-        # # dopisz dane do pliku CSV
         timestamp = datetime.now().strftime("%Y%m%d")
         results_dir = "results"
         os.makedirs(results_dir, exist_ok=True)
@@ -150,18 +148,14 @@ class ExampleAlgorithm(Algorithm):
         df = pd.DataFrame([row])
         df.to_csv(filename, mode='a', header=not os.path.exists(filename), index=False)
 
-        # # nadal aktualizuj strukturę w pamięci, jeśli potrzebna
         self.data[rx_id, self.config_itr, self.signal_power_itr] = mean_result
         self.waiting_for -= 1
 
         if self.waiting_for == 0:
-            # if self.data_collection_finished():
-            #     Parameters().save_algorithm_results_to_csv(self.data, self.configs, self.signal_power)
             self._next_data_collection_iteration()
 
         if self.data_collection_finished():
-            # one RX best pattern (one power)
-            self.selected_config = np.argmax(self.data, axis=1)[0][0] # for 1 RIS
+            self.selected_config = np.argmax(self.data, axis=1)[0][0]
             for i in range(len(self.configs)):
                 log.info('Pattern {} avg. power: {} dBm {}', self.configs[i], self.data[0, i, 0], " --- selected " if i == self.selected_config else "")
 
@@ -175,8 +169,6 @@ class ExampleAlgorithm(Algorithm):
                 self.signal_power_itr = 0
 
     def algorithm_step(self) -> Dict[str, RisParams]:
-        # SELECT BEST ? CHANGE / ETC.
-        # print(self.config_itr)
         ris_params = deepcopy(Parameters().get().rises)
         if self._ris_count == 1:
             for ris_id in ris_params:

@@ -18,7 +18,6 @@ class GeneratorController(Controller):
         
         params = Parameters().get().generator 
         
-        #self._select = params.select
         self._model = params.model
         self._con  = params.connection
         
@@ -91,15 +90,12 @@ class GeneratorController(Controller):
             return
 
         if 'frequency' in config:
-            # change or set frequency
             self._frequency = config['frequency']
 
         if 'transmit_power' in config:
-            # change or set transmit power
             self._transmit_power = config['transmit_power']
 
         if 'transmission_enabled' in config:
-            # change or set transmision enabled
             self._transmission_enabled = config['transmission_enabled']
         
         if not self._test_mode and self._generator:

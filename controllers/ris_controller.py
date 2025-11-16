@@ -1,6 +1,5 @@
 import zmq
 from loguru import logger as log
-# import time
 import json
 # from RsSmw import *
 import numpy as np
@@ -19,7 +18,6 @@ class RisController(Controller):
         super().__init__(*args, **kwargs)
 
         
-        #port = Parameters().get_ris_port(self._component_id) #ok na jednym komputerze to wtedy wiele risow ok
         base_dir = os.path.dirname(os.path.abspath(__file__))
         config_file = os.path.join(base_dir,"config_port/ris_ports.json")
         try:
@@ -41,7 +39,7 @@ class RisController(Controller):
             self.ser.flushInput()
             self.ser.flushOutput()
             self.id = id
-            self.timeout = 10 #timeout
+            self.timeout = 10 
     
     def _perform_reinit(self) -> None:
         
@@ -53,7 +51,7 @@ class RisController(Controller):
             if hasattr(self, 'ser') and self.ser:
                 self.ser.flushInput()
                 self.ser.flushOutput()
-                self.ser.write(b"!RESET\n") #???
+                self.ser.write(b"!RESET\n")
                 time.sleep(0.1)
                 log.info('[RIS {}] Serial buffers flushed', self._component_id)
         except Exception as e:
@@ -63,8 +61,6 @@ class RisController(Controller):
     def _on_message_received(self, message: Dict):
         match message['action']:
             case 'new-ack':
-                # config = message['data']
-                # self._configure_ris(config)
                 self._send_message({'action': 'ready'})
             case 'configure':
                 config = message['data']
@@ -91,10 +87,8 @@ class RisController(Controller):
             return
 
         if 'pattern' in config:
-            # set or update pattern
             self._pattern = config['pattern']
             self._set_pattern(self._pattern.encode("utf-8"))
-            #log.info(f"RIS pattern set to {self._pattern}")
             
     def _set_pattern(self, pattern: str) -> bool:
         if not pattern:
@@ -107,9 +101,7 @@ class RisController(Controller):
         start_time = time.time()
         while True:
             response = self.ser.readline()
-            # print(response)
             if response.strip() == b"#OK":
-                # log.info(f"SET: {pattern}")
                 return True
             if time.time() - start_time > 10:
                 log.error("RIS: Timeout during pattern setting.")

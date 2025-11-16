@@ -31,9 +31,6 @@ class GeneratorHandler(DeviceHandler):
         return self._ready
 
     def received_new(self, device_id, unique_id) -> Dict | None:
-        #print(self._id)
-        #assert self._id is None
-
         self._id = device_id
         self._config = {
             'frequency': Parameters().get().frequency,
@@ -111,7 +108,6 @@ class SystemLogic:
         self.rises = RisesHandler()
         self.rxes = RxesHandler()
         self._algorithm = algorithm
-        # self._algorithm.attach_rx_handler(self.rxes)
         self._experiment = experiment
         self._data_collection_phase = True
         self._measurment_queued = False
@@ -128,7 +124,6 @@ class SystemLogic:
 
         if self._measurment_queued:
             self._measurment_queued = False
-            #self.rxes.wait()
             return True
         
         return True
@@ -139,7 +134,6 @@ class SystemLogic:
 
 
         if not self._algorithm.data_collection_finished():
-            #gen_req, ris_req = self._algorithm.data_collection_request()
             request = self._algorithm.data_collection_request()
 
             if request is None:
@@ -151,7 +145,6 @@ class SystemLogic:
             self._measurment_queued = True
 
             return  gen_req, ris_req
-           #return request
 
         if self._data_collection_phase:
             log.info('Starting experiment phase.') 
