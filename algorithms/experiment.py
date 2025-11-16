@@ -5,6 +5,7 @@ from copy import deepcopy
 import os
 import pandas as pd
 from datetime import datetime
+from typing import List, Optional, Union
 
 
 class Experiment:
@@ -23,14 +24,17 @@ class Experiment:
 
 class ExampleExperiment(Experiment):
 
-    def __init__(self):
-        #ustawiamy jedna próbkę 
-        self._power_setup = [-15.0] * 100 # + [-10.0] *10 + [-5.0] * 10 + [0.0] * 10 + [5.0] * 10 + [10]  * 10 + [-15]  *10 
-        #self._power_setup = [None] * 100 + [10] * 50 + [None] * 100 + [10] * 50 + [None] * 100 + [10] * 50 + [None] * 100 + [10] * 50
+    def __init__(self,
+        power_setup: Optional[List[Union[float, None]]] = None,
+        results_dir: str = "results",
+    ):
+        self._power_setup: List[Union[float, None]] = power_setup if power_setup is not None else [-15.0]
+        #self._power_setup = [-15.0]
         self._itr = 0
         self._rx_count = Parameters().get().rxes.count
         self._data = np.nan * np.ones((self._rx_count, len(self._power_setup)))
         self._waiting_for = 0
+        self._results_dir = results_dir
 
     def reset(self) -> None:
         self._itr = 0
@@ -57,17 +61,6 @@ class ExampleExperiment(Experiment):
 
         return params
 
-    # def store_results(self, device_id: str, results) -> None:
-    #     self._waiting_for -= 1
-    #     self._data[int(device_id), self._itr] = np.mean(results)
-
-    #     if self._waiting_for == 0:
-    #         self._itr += 1
-            
-    #         if self.finished():
-    #             Parameters().save_experyment_result_csv(self._data)
-
-
     def store_results(self, device_id: str, results) -> None:
         rx_id = int(device_id)
         mean_result = float(np.mean(results))
@@ -93,5 +86,4 @@ class ExampleExperiment(Experiment):
 
         if self._waiting_for == 0:
             self._itr += 1
-            if self.finished():
-                Parameters().save_experyment_result_csv(self._data)
+

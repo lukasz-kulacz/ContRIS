@@ -3,21 +3,21 @@ from loguru import logger as log
 # import time
 import json
 # from RsSmw import *
+import re
+import subprocess
 
 import numpy as np
-from typing import Dict, Callable, List
+from typing import Dict, Callable, List, Tuple
 from helpers.zmq_connection import ZmqClient
 from controllers.controller import Controller
 import time
-
+from helpers.parameters import Params
 
 usrp = None 
 
 
 class RxController(Controller):
 
-<<<<<<< Updated upstream
-=======
     def _list_available_usrp_serials(self) -> Tuple[List[str], List[Dict]]:
         try:
             import uhd
@@ -133,7 +133,6 @@ class RxController(Controller):
         raise RuntimeError("Nie udalo sie pobrac probek po wielokrotnych probach i resetach")
 
 
->>>>>>> Stashed changes
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -145,6 +144,10 @@ class RxController(Controller):
         self._rx_gain = None
         self._buffer_size = None #327680
         self._N = None #8
+        self._usrp_usb_sn = None
+
+        self._max_attempts_per_read = 5 # liczba prob resetu
+        self._consecutive_failures = 0 
 
         if self._test_mode:
             print(f"(TEST) Symuluję połączenie z USRP")
@@ -153,11 +156,21 @@ class RxController(Controller):
             #time.sleep(10)
             import uhd
             global usrp
-            if self._component_id == '0':
-            	usrp = uhd.usrp.MultiUSRP("serial=3113F10")
-            # elif self._component_id == '1':
-           # 	usrp = uhd.usrp.MultiUSRP("serial=3273ACF")
+            params = Params()
+            try:
+                usrp_args = params.get_usrp_args(self._component_id)
+                try:
+                    usrp = uhd.usrp.MultiUSRP(usrp_args)
+                    log.log(f"Polaczylem sie z USRP o id {self._component_id}")
+                except:
+                    self._list_available_usrp_serials()
+                    log.warning(f"Brak wpisu USRP dla komponenetu o id= '{self._component_id}'")
 
+                
+                self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
+            except Exception as e:
+                log.error(f"Nie udalo sie zainicjalizowac USRP: {e}")
+                usrp = None
 
     def _on_message_received(self, message: Dict):
         match message['action']:
@@ -165,21 +178,16 @@ class RxController(Controller):
                 config = message['data']
                 self._configure_rx(config)
                 self._send_message({'action': 'ready'})
-<<<<<<< Updated upstream
-=======
             case 'configure':
                 config =  message['data']
                 self._configure_rx(config)
                 self._send_message({'action' : 'configure-ack'})
                 self._send_message({'action' : 'ready'})
                 #log.warning("RX {} reinit", self._component_id)
->>>>>>> Stashed changes
             case 'measure':
                 config = message['data']
                 result = self._measure(config)
                 self._send_message({'action': 'measure-ack', 'data': result})
-<<<<<<< Updated upstream
-=======
                 # reason = "LIBUSB_TRANSFER_OVERFLOW"
                 # self._notify_reinit(reason)
                 # time.sleep(50)
@@ -206,7 +214,6 @@ class RxController(Controller):
             case 'done':
                 log.warning("[RX] Finish")
 
->>>>>>> Stashed changes
             case _:
                 log.warning('this action is not defined!')
 
@@ -229,21 +236,13 @@ class RxController(Controller):
         if 'buffer_size' in config:
             self._buffer_size = config['buffer_size']
             
-        if 'N' in config: #gdzie w innym miejscu N zalezna jest od tego inijka 78
+        if 'N' in config: 
             self._N = config['N']
         
-<<<<<<< Updated upstream
-        if self._test_mode ==  False:
-        #     #configure usrp
-            # self.usrp.set_rx_rate(self._samp_rate)
-            # self.usrp.set_rx_freq(self._frequency,1)
-            # self.usrp.set_rx_gain(self._rx_gain,1)
-=======
         if not self._test_mode:
 
->>>>>>> Stashed changes
             log.info(f"RX Configured: Frequency = {self._frequency} Hz, Gain = {self._rx_gain} dB, sample rate = {self._samp_rate} S/s")
-            #time.sleep(10)
+ 
 
 
     def _measure(self, config: Dict) -> List[float]:
@@ -254,11 +253,12 @@ class RxController(Controller):
             self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
             log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
             return [result] #symulation
-        
+            
         power_measurements = []
         while len(power_measurements) < self._N:
             #print(self._buffer_size, self._frequency, self._samp_rate, self._rx_gain)
-            samples = usrp.recv_num_samps(self._buffer_size, self._frequency, self._samp_rate, [0], self._rx_gain)
+            samples = self._recv_samples_safe()
+            #samples = usrp.recv_num_samps(self._buffer_size, self._frequency, self._samp_rate, [0], self._rx_gain)
             #samples = [30.0, 12.2,23.0]
             power_lin = np.mean(np.abs(samples) ** 2)
             power_log = 10 * np.log10(power_lin)
