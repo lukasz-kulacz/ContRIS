@@ -10,23 +10,16 @@ PORT_PUB_SUB = 5558
 PORT_PUSH_PULL = 5559
 TEST_MODE = True
 
-EXPERIMENT_POWER_SETUP = [-30, -25, -20, None, -15] 
-EXPERIMENT_RESULTS_DIR = "results" 
 
-ALGO_SIGNAL_POWER = [10.0] 
-ALGO_PATTERN_IDS  = [0] 
-ALGO_RESULTS_DIR  = "results" 
-
-        
 algorithm = ExampleAlgorithm(
-    signal_power=ALGO_SIGNAL_POWER, #[],
-    pattern_ids=ALGO_PATTERN_IDS,
-    results_dir=ALGO_RESULTS_DIR
+    signal_power= [10.0, None, -5],
+    pattern_ids=[0],
+    results_dir="results" 
 )
 
 experiment = ExampleExperiment(
-    power_setup=EXPERIMENT_POWER_SETUP,
-    results_dir=EXPERIMENT_RESULTS_DIR
+    power_setup=[-30, -25, -20, None, -15] ,
+    results_dir="results" 
 )
 
 log.remove()
