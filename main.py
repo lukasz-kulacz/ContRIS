@@ -26,7 +26,18 @@ if __name__ == '__main__':
             algorithm=ExampleAlgorithm(),
             experiment=ExampleExperiment()
         )
+<<<<<<< Updated upstream
         controller.run()
+=======
+        
+        try:
+            controller.run()
+        except KeyboardInterrupt:
+            controller._broadcast_action("done")
+
+            #controller._send_finish_message()
+            
+>>>>>>> Stashed changes
     elif 2 <= len(sys.argv) <= 3:
         cmd = str(sys.argv[1])
         match cmd:

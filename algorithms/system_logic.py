@@ -127,10 +127,16 @@ class SystemLogic:
 
         if self._measurment_queued:
             self._measurment_queued = False
-            self.rxes.wait()
+            #self.rxes.wait()
             return True
+<<<<<<< Updated upstream
 
 
+=======
+        
+        return True
+        
+>>>>>>> Stashed changes
     def generate_configuration_change_requests(self) -> Tuple[GeneratorParams | None, Dict[str, RisParams] | None]:
 
         if not self.ready() or self._measurment_queued:
@@ -140,13 +146,19 @@ class SystemLogic:
 
 
         if not self._algorithm.data_collection_finished():
+            #gen_req, ris_req = self._algorithm.data_collection_request()
             request = self._algorithm.data_collection_request()
 
+            if request is None:
+                return (None, None)
+
+            gen_req, ris_req = request
             self.generator.wait()
             self.rises.wait()
             self._measurment_queued = True
 
-            return request
+            return  gen_req, ris_req
+           #return request
 
         if self._data_collection_phase:
             log.info('Finished data collection phase. Starting experiment phase.') 
