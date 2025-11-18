@@ -1,7 +1,8 @@
-import numpy as np
+from typing import Dict, Tuple
+
 from loguru import logger as log
-from typing import List, Dict, Tuple
-from helpers.parameters import Parameters, GeneratorConfig, RisParams
+
+from helpers.parameters import Parameters, GeneratorConfigChangeRequest, RisConfigChangeRequest
 from algorithms.algorithm import Algorithm
 from algorithms.experiment import Experiment
 
@@ -33,9 +34,9 @@ class GeneratorHandler(DeviceHandler):
     def received_new(self, device_id, unique_id) -> Dict | None:
         self._id = device_id
         self._config = {
-            'frequency': Parameters().get().frequency,
-            'transmit_power': Parameters().get().generator.settings.transmit_power,
-            'transmission_enabled': Parameters().get().generator.settings.transmission_enabled
+            'frequency': Parameters().frequency_hz,
+            'transmit_power': Parameters().generator_transmit_power_dbm,
+            'transmission_enabled': Parameters().generator_transmission_enabled
         }
         return self._config
 
@@ -49,7 +50,7 @@ class GeneratorHandler(DeviceHandler):
 
 class RisesHandler(DeviceHandler):
     def __init__(self):
-        self._ready = {ris: False for ris in Parameters().get().rises}
+        self._ready = {str(ris): False for ris in range(Parameters().ris_count)}
 
     def ready(self):
         return all(self._ready.values())
@@ -74,21 +75,21 @@ class RxesHandler(DeviceHandler):
         self._ready = {}
 
     def ready(self):
-        return len(self._ready) == Parameters().get().rxes.count and \
+        return len(self._ready) == Parameters().rx_count and \
             all(self._ready.values())
 
     def received_new(self, device_id, unique_id) -> Dict | None:
-        assert len(self._ready) <= Parameters().get().rxes.count
+        assert len(self._ready) <= Parameters().rx_count
         log.info("Registered new RX: {}", device_id)
 
 
         self._ready[device_id] = False
         return {
-            'frequency': Parameters().get().frequency,
-            'samp_rate': Parameters().get().rxes.samp_rate,
-            'rx_gain': Parameters().get().rxes.rx_gain,
-            'buffer_size' : Parameters().get().rxes.buffer_size,
-            'N' : Parameters().get().rxes.N
+            'frequency': Parameters().frequency_hz,
+            'samp_rate': Parameters().rx_samp_rate,
+            'rx_gain': Parameters().rx_gain_db,
+            'buffer_size' : Parameters().rx_buffer_size,
+            'N' : Parameters().rx_repeates
         }
 
     def received_ready(self, device_id) -> None:
@@ -128,7 +129,7 @@ class SystemLogic:
         
         return True
         
-    def generate_configuration_change_requests(self) -> Tuple[GeneratorConfig | None, Dict[str, RisParams] | None]:
+    def generate_configuration_change_requests(self) -> Tuple[GeneratorConfigChangeRequest | None, Dict[str, RisConfigChangeRequest] | None]:
         if not self.ready() or self._measurment_queued:
             return (None, None)
 

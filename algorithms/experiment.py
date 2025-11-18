@@ -1,18 +1,19 @@
-from loguru import logger as log
-from helpers.parameters import Parameters, GeneratorConfig
-import numpy as np
-from copy import deepcopy
 import os
-import pandas as pd
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Optional
+
+import numpy as np
+import pandas as pd
+from loguru import logger as log
+
+from helpers.parameters import Parameters, GeneratorConfigChangeRequest
 
 
 class Experiment:
     def finished(self) -> bool:
         raise NotImplementedError
 
-    def generate_generator_params(self) -> GeneratorConfig | None:
+    def generate_generator_params(self) -> GeneratorConfigChangeRequest | None:
         raise NotImplementedError
 
     def store_results(self, device_id: str, results) -> None:
@@ -25,12 +26,12 @@ class Experiment:
 class ExampleExperiment(Experiment):
 
     def __init__(self,
-        power_setup: Optional[List[Union[float, None]]] = None,
+        power_setup: Optional[List[float | None]] = None,
         results_dir: str = "results",
     ):
-        self._power_setup: List[Union[float, None]] = power_setup if power_setup is not None else [-15.0]
+        self._power_setup: List[float | None] = power_setup if power_setup is not None else [-15.0]
         self._itr = 0
-        self._rx_count = Parameters().get().rxes.count
+        self._rx_count = Parameters().rx_count
         self._data = np.nan * np.ones((self._rx_count, len(self._power_setup)))
         self._waiting_for = 0
         self._results_dir = results_dir
@@ -42,23 +43,21 @@ class ExampleExperiment(Experiment):
     def finished(self):
         return self._itr == len(self._power_setup) and not np.isnan(self._data).any()
 
-    def generate_generator_params(self) -> GeneratorConfig | None:
+    def generate_generator_params(self) -> GeneratorConfigChangeRequest | None:
         if self._waiting_for > 0:
             return None
 
         log.debug('Experiment step {}/{}: power {} ', 
                 self._itr + 1, len(self._power_setup), self._power_setup[self._itr])
 
-        params = deepcopy(Parameters().get().generator)
-        if self._power_setup[self._itr] is None:
-            params.settings.transmission_enabled = False
-        else:
-            params.settings.transmission_enabled = True
-            params.settings.transmit_power = self._power_setup[self._itr]
+        generator_requests = GeneratorConfigChangeRequest(
+            transmit_power_dbm=self._power_setup[self._itr],
+            transmission_enabled=self._power_setup[self._itr] is not None
+        )
 
         self._waiting_for = self._rx_count
 
-        return params
+        return generator_requests
 
     def store_results(self, device_id: str, results) -> None:
         rx_id = int(device_id)

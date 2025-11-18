@@ -5,7 +5,7 @@ import re
 import subprocess
 import numpy as np
 from typing import Dict, Callable, List, Tuple
-from helpers.zmq_connection import ZmqClient
+from helpers.helpers import ZmqClient
 from controllers.controller import Controller
 import time
 from helpers.parameters import Params

@@ -1,19 +1,16 @@
-import zmq
-from loguru import logger as log
-# import time
-import json
-# from RsSmw import *
 import re
+import time
 import subprocess
+from typing import Dict, List, Tuple
 
 import numpy as np
-from typing import Dict, Callable, List, Tuple
-from helpers.zmq_connection import ZmqClient
-from controllers.controller import Controller
-import time
-from helpers.parameters import Params
+from loguru import logger as log
 
-usrp = None 
+from controllers.controller import Controller
+from helpers.parameters import Parameters
+
+
+usrp = None  # global handler for USRP (only one instance per controller / process)
 
 
 class RxController(Controller):
@@ -40,7 +37,7 @@ class RxController(Controller):
         else:
             try:
                 import uhd
-                params = Params()
+                params = Parameters()
                 usrp_args = params.get_usrp_args(self._component_id)
                 usrp = uhd.usrp.MultiUSRP(usrp_args) 
                 self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
@@ -91,15 +88,10 @@ class RxController(Controller):
         
     def _recv_samples_safe(self) -> np.ndarray:
         global usrp
+        assert self._test_mode == False, 'Cannot receive samples in test mode.'
         
-        if self._test_mode:
-            noise = (np.random.randn(self._buffer_size) + 1j*np.random.randn(self._buffer_size)) * 0.1
-            return noise
-        
-        max_attempts = self._max_attempts_per_read
         attempt = 0
-
-        while attempt < max_attempts:
+        while attempt < Parameters().rx_max_attempts_per_read:
             attempt += 1
             try:
                 samples = usrp.recv_num_samps(
@@ -115,7 +107,7 @@ class RxController(Controller):
             except Exception as e:
                 msg = str(e)
                 log.error(f"[RX {self._component_id}] recv_num_samps exception "
-                          f"(attempt {attempt}/{max_attempts}): {msg}")
+                          f"(attempt {attempt}/{Parameters().rx_max_attempts_per_read}): {msg}")
 
                 transient = any(s in msg for s in[
                     "LIBUSB_TRANSFER_OVERFLOW",
@@ -131,47 +123,41 @@ class RxController(Controller):
                     if not self._reset_usrp_with_backoff(msg):
                         continue
                 else:
-                    raise
+                    raise  # TODO: raise co?
         raise RuntimeError(f"[RX {self._component_id}] Failed to retrieve samples after multiple attempts.")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self._avg_power_history = -100.0 
-        self._log_history_coeff = 0.95
+    
+        self._avg_power_history = Parameters().rx_initial_avg_power_history_dbm
+        self._log_history_coeff = Parameters().rx_log_history_coeff
 
         self._frequency = None
         self._samp_rate = None
         self._rx_gain = None
-        self._buffer_size = None #327680
-        self._N = None #8
+        self._buffer_size = None 
+        self._N = None 
         self._usrp_usb_sn = None
 
-        self._max_attempts_per_read = 5 # liczba prob resetu
         self._consecutive_failures = 0 
 
         if self._test_mode:
-            log.info(f"(TEST) Simulating USRP connection for RX {self._component_id}")
-            self._init_usrp_from_params()
+            log.info(f"(test mode) Simulating USRP connection for RX {self._component_id}")
+            self._init_usrp_from_params() # TODO: po co to?
         else:
-            #time.sleep(10)
             import uhd
             global usrp
-            params = Params()
-            try:
-                usrp_args = params.get_usrp_args(self._component_id)
-                try:
-                    usrp = uhd.usrp.MultiUSRP(usrp_args)
-                    log.info(f"[RX {self._component_id}] Connected to USRP.")
-                except:
-                    self._list_available_usrp_serials()
-                    log.warning(f"No USRP entry found for RX ID '{self._component_id}'")
 
-                
-                self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
-            except Exception as e:
+            try:
+                usrp = uhd.usrp.MultiUSRP(f'serial={Parameters().rx_usrp_serial_map[self._component_id]}')
+                log.info(f"[RX {self._component_id}] Connected to USRP.")
+            except KeyError:
+                log.error(f"No USRP serial number found in parameters for RX ID '{self._component_id}'")
+            except Exception as ex:
+                self._list_available_usrp_serials()
                 log.error(f"[RX {self._component_id}] Failed to initialize USRP: {e}")
-                usrp = None
+                
+                # self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id) # TODO: po co to?
 
     def _on_message_received(self, message: Dict):
         match message['action']:
@@ -188,9 +174,6 @@ class RxController(Controller):
                 config = message['data']
                 result = self._measure(config)
                 self._send_message({'action': 'measure-ack', 'data': result})
-                # reason = "LIBUSB_TRANSFER_OVERFLOW"
-                # self._notify_reinit(reason)
-                # time.sleep(50)
             case 'reinit':
                 log.warning('[RX {}] REINIT requested', self._component_id)
 
@@ -240,16 +223,16 @@ class RxController(Controller):
             self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
             log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
             return [result] 
-            
-        power_measurements = []
-        while len(power_measurements) < self._N:
-            samples = self._recv_samples_safe()
-            power_lin = np.mean(np.abs(samples) ** 2)
-            power_log = 10 * np.log10(power_lin)
-            power_measurements.append(float(power_log))
+        else:
+            power_measurements = []
+            while len(power_measurements) < self._N:
+                samples = self._recv_samples_safe()
+                power_lin = np.mean(np.abs(samples) ** 2)
+                power_log = 10 * np.log10(power_lin)
+                power_measurements.append(float(power_log))
 
-            self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
-            self._avg_power_history += power_lin * (1.0 - self._log_history_coeff)
-            self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
-            log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {power_log:.2f} dBm")
-        return power_measurements
+                self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
+                self._avg_power_history += power_lin * (1.0 - self._log_history_coeff)
+                self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
+                log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {power_log:.2f} dBm")
+            return power_measurements

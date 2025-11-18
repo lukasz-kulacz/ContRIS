@@ -1,23 +1,21 @@
-import zmq
-from loguru import logger as log
-import json
-# from RsSmw import *
-import numpy as np
-from typing import Dict, Callable
-from helpers.zmq_connection import ZmqClient
-from controllers.controller import Controller
-from unittest.mock import Mock
-from helpers.parameters import Parameters
 import time
-import os
+from typing import Dict
+
+from serial import Serial
+from loguru import logger as log
+
+from controllers.controller import Controller
+from helpers.parameters import Parameters
 
 
 class RisController(Controller):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.ser = None
 
         try:
+            # TODO: czy to jest w uzyciu (metoda zakomentowana)
             port = Parameters().get_ris_port(self._component_id)
         except Exception as e:
             raise RuntimeError(f"[RIS {self._component_id}] Cannot resolve USB port: {e}")
@@ -25,7 +23,6 @@ class RisController(Controller):
         log.info(f"[RIS {self._component_id}] Using serial port {port}")
 
         if not self._test_mode:
-            from serial import Serial
             try:
                 self.ser = Serial(port, baudrate=115200, timeout=10)
                 self.ser.flushInput()
@@ -33,8 +30,6 @@ class RisController(Controller):
                 log.info(f"[RIS {self._component_id}] Serial connection established.")
             except Exception as e:
                 raise RuntimeError(f"Failed to open serial port {port}: {e}")
-
-            self.timeout = 10
     
     def _perform_reinit(self) -> None:
         
@@ -43,7 +38,7 @@ class RisController(Controller):
             return
         
         try:
-            if hasattr(self, 'ser') and self.ser:
+            if self.ser is not None:
                 self.ser.flushInput()
                 self.ser.flushOutput()
                 self.ser.write(b"!RESET\n")
