@@ -12,9 +12,10 @@ from helpers.parameters import (
 
 
 class Algorithm:
-    def __init__(self):
-        self._ris_count = Parameters().ris_count
-        self._rx_count = Parameters().rx_count
+    def __init__(self, parameters: Parameters):
+        self._parameters = parameters
+        self._ris_count = parameters.ris_count
+        self._rx_count = parameters.rx_count
 
     def data_collection_finished(self) -> bool:
         raise NotImplementedError
@@ -35,10 +36,11 @@ class Algorithm:
 class ExampleAlgorithm(Algorithm):
 
     def __init__(self,
+                 parameters: Parameters,
                  signal_power: list = None,
                  pattern_ids: list[int] | None = None,
                  results_dir: str = "results"):
-        super().__init__()
+        super().__init__(parameters=parameters)
 
         self.all_patterns = {
             0: "0x8000800080008000800080008000800080008000800080008000800080008000",
@@ -106,6 +108,7 @@ class ExampleAlgorithm(Algorithm):
             return None
 
         generator_request = GeneratorConfigChangeRequest(
+            frequency_hz=self._parameters.frequency_hz,
             transmit_power_dbm=self.signal_power[self.signal_power_itr],
             transmission_enabled=self.signal_power[self.signal_power_itr] is not None
         )
@@ -124,7 +127,7 @@ class ExampleAlgorithm(Algorithm):
                 )
         else:
             assert False, 'Only 1 or 2 RIS supported'
- 
+
         self.waiting_for = self._rx_count
         return generator_request, ris_requests
 

@@ -10,6 +10,10 @@ from helpers.parameters import Parameters, GeneratorConfigChangeRequest
 
 
 class Experiment:
+
+    def __init__(self, parameters: Parameters):
+        self._parameters = parameters
+
     def finished(self) -> bool:
         raise NotImplementedError
 
@@ -26,12 +30,15 @@ class Experiment:
 class ExampleExperiment(Experiment):
 
     def __init__(self,
+        parameters: Parameters,
         power_setup: Optional[List[float | None]] = None,
         results_dir: str = "results",
     ):
+        super().__init__(parameters=parameters)
+
         self._power_setup: List[float | None] = power_setup if power_setup is not None else [-15.0]
         self._itr = 0
-        self._rx_count = Parameters().rx_count
+        self._rx_count = self._parameters.rx_count
         self._data = np.nan * np.ones((self._rx_count, len(self._power_setup)))
         self._waiting_for = 0
         self._results_dir = results_dir
@@ -51,12 +58,12 @@ class ExampleExperiment(Experiment):
                 self._itr + 1, len(self._power_setup), self._power_setup[self._itr])
 
         generator_requests = GeneratorConfigChangeRequest(
+            frequency_hz=self._parameters.frequency_hz,
             transmit_power_dbm=self._power_setup[self._itr],
             transmission_enabled=self._power_setup[self._itr] is not None
         )
 
         self._waiting_for = self._rx_count
-
         return generator_requests
 
     def store_results(self, device_id: str, results) -> None:

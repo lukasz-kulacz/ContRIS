@@ -12,19 +12,21 @@ from algorithms.experiment import Experiment
 
 class SystemController:
     def __init__(self,
-                 port_pub: int,
-                 port_pull: int,
+                 parameters: Parameters,
+                 # port_pub: int,
+                 # port_pull: int,
                  algorithm: Algorithm,
                  experiment: Experiment
                  ):
-        
+        self._parameters = parameters
         log.info('SystemController initialized')
         
         self._connection = ZmqServer(
-            port_pub=port_pub,
-            port_pull=port_pull
+            port_pub=self._parameters.system_controller_port_pub_sub,
+            port_pull=self._parameters.system_controller_port_push_pull
         )
         self._system_logic = SystemLogic(
+            parameters=parameters,
             algorithm=algorithm,
             experiment=experiment
         )
@@ -39,8 +41,8 @@ class SystemController:
         log.info("Waiting for all required components to register ...")
         
         required_generator = True
-        required_ris_ids = [str(ris_id) for ris_id in range(Parameters().ris_count)] 
-        requires_rx_count = Parameters().rx_count
+        required_ris_ids = [str(ris_id) for ris_id in range(self._parameters.ris_count)] 
+        requires_rx_count = self._parameters.rx_count
         
         timeout_s = 10
         start_time = time.time()
@@ -82,32 +84,34 @@ class SystemController:
         generator_request, rises_requests = self._system_logic.generate_configuration_change_requests()
 
         if generator_request is not None:
-            if generator_request.transmission_enabled == Parameters().generator_transmission_enabled and \
-                generator_request.transmit_power_dbm == Parameters().generator_transmit_power_dbm:
+            if generator_request.transmission_enabled == self._parameters.generator_transmission_enabled and \
+                generator_request.transmit_power_dbm == self._parameters.generator_transmit_power_dbm and \
+                generator_request.frequency_hz == self._parameters.frequency_hz:
                 log.debug('Skipping generator config update - no change detected.')
                 self._system_logic.generator.received_ready('0')
             else:
                 log.info("Updating generator configuration.")
-                Parameters().generator_transmission_enabled = generator_request.transmission_enabled
-                Parameters().generator_transmit_power_dbm = generator_request.transmit_power_dbm
+                self._parameters.generator_transmission_enabled = generator_request.transmission_enabled
+                self._parameters.generator_transmit_power_dbm = generator_request.transmit_power_dbm
+                self._parameters.frequency_hz = generator_request.frequency_hz
                 self._send_message({
                     'component':'generator', 
                     'action': 'configure', 
                     'data': {
-                        'frequency': Parameters().frequency_hz,
-                        'transmit_power': Parameters().generator_transmit_power_dbm,
-                        'transmission_enabled': Parameters().generator_transmission_enabled
+                        'frequency_hz': self._parameters.frequency_hz,
+                        'transmit_power_dbm': self._parameters.generator_transmit_power_dbm,
+                        'transmission_enabled': self._parameters.generator_transmission_enabled
                     }})
 
         if rises_requests is not None:
             for ris_id, ris_request in rises_requests.items():
-                if ris_request.pattern_index == Parameters().ris_settings[ris_id][0] and \
-                    ris_request.pattern_hex == Parameters().ris_settings[ris_id][1]:
+                if ris_request.pattern_index == self._parameters.ris_settings[ris_id][0] and \
+                    ris_request.pattern_hex == self._parameters.ris_settings[ris_id][1]:
                     log.debug(f"Skipping RIS {ris_id} config update - no change detected.")
                     self._system_logic.rises.received_ready(ris_id)
                 else:
                     log.info(f"Updating RIS {ris_id} configuration.")
-                    Parameters().ris_settings[ris_id] = (ris_request.pattern_index, ris_request.pattern_hex) 
+                    self._parameters.ris_settings[ris_id] = (ris_request.pattern_index, ris_request.pattern_hex) 
                     log.debug('set RIS {} pattern {}', ris_id, ris_request.pattern_hex)
                     self._send_message({
                         'component': 'ris', 
@@ -225,6 +229,11 @@ class SystemController:
     def _broadcast_action(self, action: str) -> None:
         log.warning("Broadcast '{}' to all known components", action)
         
+        self._send_message({
+            'action' : action
+        })
+
+        return
         # TODO: czy musza byc osobne?
         gen_id = self._generator_id or "0"
         self._send_message({

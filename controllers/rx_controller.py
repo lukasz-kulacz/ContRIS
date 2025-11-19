@@ -91,7 +91,7 @@ class RxController(Controller):
         assert self._test_mode == False, 'Cannot receive samples in test mode.'
         
         attempt = 0
-        while attempt < Parameters().rx_max_attempts_per_read:
+        while attempt < self._parameters.rx_max_attempts_per_read:
             attempt += 1
             try:
                 samples = usrp.recv_num_samps(
@@ -107,7 +107,7 @@ class RxController(Controller):
             except Exception as e:
                 msg = str(e)
                 log.error(f"[RX {self._component_id}] recv_num_samps exception "
-                          f"(attempt {attempt}/{Parameters().rx_max_attempts_per_read}): {msg}")
+                          f"(attempt {attempt}/{self._parameters.rx_max_attempts_per_read}): {msg}")
 
                 transient = any(s in msg for s in[
                     "LIBUSB_TRANSFER_OVERFLOW",
@@ -129,8 +129,8 @@ class RxController(Controller):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
-        self._avg_power_history = Parameters().rx_initial_avg_power_history_dbm
-        self._log_history_coeff = Parameters().rx_log_history_coeff
+        self._avg_power_history = self._parameters.rx_initial_avg_power_history_dbm
+        self._log_history_coeff = self._parameters.rx_log_history_coeff
 
         self._frequency = None
         self._samp_rate = None
@@ -149,13 +149,13 @@ class RxController(Controller):
             global usrp
 
             try:
-                usrp = uhd.usrp.MultiUSRP(f'serial={Parameters().rx_usrp_serial_map[self._component_id]}')
+                usrp = uhd.usrp.MultiUSRP(f'serial={self._parameters.rx_usrp_serial_map[self._component_id]}')
                 log.info(f"[RX {self._component_id}] Connected to USRP.")
             except KeyError:
                 log.error(f"No USRP serial number found in parameters for RX ID '{self._component_id}'")
             except Exception as ex:
                 self._list_available_usrp_serials()
-                log.error(f"[RX {self._component_id}] Failed to initialize USRP: {e}")
+                log.error(f"[RX {self._component_id}] Failed to initialize USRP: {ex}")
                 
                 # self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id) # TODO: po co to?
 

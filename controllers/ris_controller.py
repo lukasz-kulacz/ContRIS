@@ -5,7 +5,7 @@ from serial import Serial
 from loguru import logger as log
 
 from controllers.controller import Controller
-from helpers.parameters import Parameters
+from helpers.parameters import Parameters, RisConfigChangeRequest
 
 
 class RisController(Controller):
@@ -14,12 +14,7 @@ class RisController(Controller):
         super().__init__(*args, **kwargs)
         self.ser = None
 
-        try:
-            # TODO: czy to jest w uzyciu (metoda zakomentowana)
-            port = Parameters().get_ris_port(self._component_id)
-        except Exception as e:
-            raise RuntimeError(f"[RIS {self._component_id}] Cannot resolve USB port: {e}")
-        
+        port = self._parameters.ris_serial_map[self._component_id]
         log.info(f"[RIS {self._component_id}] Using serial port {port}")
 
         if not self._test_mode:
@@ -56,6 +51,7 @@ class RisController(Controller):
                 
             case 'configure':
                 config = message['data']
+                config = RisConfigChangeRequest(**config)
                 self._configure_ris(config)
                 self._send_message({'action': 'configure-ack'})
                 
@@ -89,14 +85,14 @@ class RisController(Controller):
             case _:
                 log.warning(f"[RIS {self._component_id}] Unknown action received.")
 
-    def _configure_ris(self, config: Dict):
-        log.info(f"SET {config['index']}: {config['pattern']}")
+    def _configure_ris(self, config: RisConfigChangeRequest):
+        log.info(f"SET {config.pattern_index}: {config.pattern_hex}")
         if self._test_mode:
             return
 
-        if 'pattern' in config:
-            self._pattern = config['pattern']
-            self._set_pattern(self._pattern.encode("utf-8"))
+    #        if 'pattern' in config:
+        self._pattern = config.pattern_hex
+        self._set_pattern(self._pattern.encode("utf-8"))
             
     def _set_pattern(self, pattern: str) -> bool:
         if not pattern:

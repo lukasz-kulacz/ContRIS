@@ -11,7 +11,8 @@ class GeneratorModel(str, Enum):
 
 ''' Helper structure for generator settings modification '''
 class GeneratorConfigChangeRequest(BaseModel):
-    transmit_power_dbm: float
+    frequency_hz: float
+    transmit_power_dbm: float | None
     transmission_enabled: bool
 
 
@@ -63,10 +64,3 @@ class Parameters(BaseModel):
         '0': (None, None)
     })
     ris_count: int = 1
-
-    ''' singleton part '''
-    __instance = None
-    def __call__(cls, *args, **kwargs):
-        if cls.__instance is None:
-            cls.__instance = super().__call__(cls)
-        return cls.__instance

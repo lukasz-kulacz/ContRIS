@@ -10,15 +10,16 @@ from helpers.parameters import Parameters
 
 # 1. set log level
 log.remove()
-log.add(sys.stderr, level="DEBUG") 
+log.add(sys.stderr, level="INFO") 
 
 # 2. set parameters
-Parameters(
+parameters = Parameters(
     frequency_hz=2.3e9
 )
 
 # 3. set algorithm
 algorithm = ExampleAlgorithm(
+    parameters=parameters,
     signal_power= [10.0, None, -5],
     pattern_ids=[0],
     results_dir="results" 
@@ -26,6 +27,7 @@ algorithm = ExampleAlgorithm(
 
 # 4. set experiment
 experiment = ExampleExperiment(
+    parameters=parameters,
     power_setup=[-30, -25, -20, None, -15] ,
     results_dir="results" 
 )
@@ -46,6 +48,7 @@ if __name__ == '__main__':
         controller = create_controller(
             controller_type=controller_type,
             controller_id=controller_id,
+            parameters=parameters,
             algorithm=algorithm,
             experiment=experiment
         )
@@ -53,6 +56,7 @@ if __name__ == '__main__':
         # run controller
         try:
             controller.run()
+            break
         except KeyboardInterrupt:
             log.warning("Keyboard interrupt received. Shutting down controller...")
             controller._broadcast_action("done")
