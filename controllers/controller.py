@@ -11,11 +11,7 @@ class Controller:
     def __init__(self,
                  parameters: Parameters,
                  component_name: str,
-                 component_id: str,
-                 # controller_address: str,
-                 # port_sub: int,
-                 # port_push: int,
-                 # test_mode: bool
+                 component_id: str
                  ):
         self._parameters = parameters
         self._component_name = component_name
@@ -41,18 +37,17 @@ class Controller:
         raise NotImplementedError
     
     def _on_finish(self) -> None:
-        log.warning('Component {} ({}) finished', self._component_name, self._component_id)
+        log.success('Component {} ({}) finished', self._component_name, self._component_id)
 
     def _on_message_received_base(self, message: Dict) -> None:
-
         if not self._connected:
             if message['action'] == 'new-ack':
                 self._connected = True
-                log.debug('Component {} connected', self._component_name)
+                log.success('Component {} connected', self._component_name)
             else:
                 log.warning('Component {} NOT connected', self._component_name)
 
-        if message['action'] in ['restart', 'reinit']:
+        if message['action'] in ['restart']:
             log.warning('Component {} restarting as requested', self._component_name)
             raise RestartRequired
         

@@ -10,7 +10,12 @@ from helpers.parameters import Parameters
 
 # 1. set log level
 log.remove()
-log.add(sys.stderr, level="INFO") 
+log.add(
+    lambda msg: print(msg, end=''),
+    colorize=True,
+    format="<green>{time:HH:mm:ss}</green> | {level.name} | <cyan>{file}:{line}</cyan> - <level>{message}</level>",
+    level="INFO"
+)
 
 # 2. set parameters
 parameters = Parameters(
@@ -28,7 +33,7 @@ algorithm = ExampleAlgorithm(
 # 4. set experiment
 experiment = ExampleExperiment(
     parameters=parameters,
-    power_setup=[-30, -25, -20, None, -15] ,
+    power_setup=[-30] ,
     results_dir="results" 
 )
 
@@ -59,7 +64,7 @@ if __name__ == '__main__':
             break
         except KeyboardInterrupt:
             log.warning("Keyboard interrupt received. Shutting down controller...")
-            controller._broadcast_action("done")
+            controller._send_message({'action': "done"})
             break
         except RestartRequired:
             log.info("Restarting {} controller...", controller_type)

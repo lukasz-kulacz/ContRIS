@@ -67,6 +67,7 @@ class ExampleExperiment(Experiment):
         return generator_requests
 
     def store_results(self, device_id: str, results) -> None:
+        assert self._waiting_for > 0
         rx_id = int(device_id)
         mean_result = float(np.mean(results))
         power = self._power_setup[self._itr]

@@ -22,17 +22,28 @@ class RisConfigChangeRequest(BaseModel):
     pattern_hex: str
 
 
+''' Helper structure for RX settings modification '''
+class RxConfigChangeRequest(BaseModel):
+    frequency_hz: float
+    samp_rate: float
+    gain_db: float
+    buffer_size: int
+    repeats: int
+        
+
 ''' All parameters of the system '''
 class Parameters(BaseModel):
     ''' general parameters '''
     frequency_hz: float = 5e9
     sleep_after_restart_s: float = 3.0
     test_mode: bool = True
+    test_mode_rx_fail_chance: float = 0.01
 
     ''' system controller parameters '''
     system_controller_ip_address: str = 'localhost'
     system_controller_port_pub_sub: int = 5558
     system_controller_port_push_pull: int = 5559
+    system_controller_wait_time_s: float = 10.0
 
     ''' generator parameters '''
     generator_transmit_power_dbm: float = -20.0
@@ -50,10 +61,9 @@ class Parameters(BaseModel):
     rx_gain_db: float = 40.0
     rx_buffer_size: int = int(40e3) 
     rx_count: int = 1
-    rx_repeates: int = 1  
+    rx_repeats: int = 1  
     rx_initial_avg_power_history_dbm: float = -100.0
     rx_log_history_coeff: float = 0.95
-    rx_max_attempts_per_read: int = 5
 
     ''' ris parameters '''
     ris_serial_map: Dict[str, str] = Field(default={
@@ -64,3 +74,5 @@ class Parameters(BaseModel):
         '0': (None, None)
     })
     ris_count: int = 1
+    ris_serial_boudrate: int = 115200
+    ris_serial_timeout: float = 10.0

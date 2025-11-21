@@ -3,7 +3,7 @@ from typing import Dict
 from loguru import logger as log
 
 from controllers.controller import Controller
-from helpers.parameters import Parameters, GeneratorModel, GeneratorConfigChangeRequest
+from helpers.parameters import GeneratorModel, GeneratorConfigChangeRequest
 
 
 class GeneratorController(Controller):
@@ -38,19 +38,6 @@ class GeneratorController(Controller):
                 log.error(f"Error connecting to generator: {e}")
                 exit()
 
-    def _perform_reinit(self) -> None:
-        try:
-            if not self._test_mode:
-                self._generator.output.state.set_value(False)
-                log.info("[GENERATOR] RF off")
-        except Exception as e:
-            log.error(f"[GENERATOR] RF disable faild during reinit because: {e}")
-        try:
-            self._transmission_enabled = False
-        except Exception:
-            pass
-
-
     def _on_message_received(self, message: Dict):
         match message['action']:
             case 'new-ack':
@@ -63,17 +50,6 @@ class GeneratorController(Controller):
                 config = GeneratorConfigChangeRequest(**config)
                 self._configure_generator(config)
                 self._send_message({'action': 'configure-ack'})
-            case 'noise':
-                # TODO: Czy to jest gdziekolwiek uzywane?
-                self._configure_noise()
-                self._send_message({'action': 'noise-ack'})
-            case 'reinit':
-                log.warning("[GENERATOR] REINIT requested")
-                self._perform_reinit()
-                self._send_message({'action' : 'new'})
-            case 'done':
-                log.warning("[GENERATOR] Finish")
-
             case _:
                 log.warning('this action is not defined!')
 
@@ -82,16 +58,12 @@ class GeneratorController(Controller):
             log.info('(test mode) generator configured {}'.format(config))
             return
 
-        # if 'frequency' in config:
         self._frequency = config.frequency_hz
         log.debug('Frequency set to {}', self._frequency)
 
-        # if 'transmit_power' in config:
         if config.transmit_power_dbm is not None:
             self._transmit_power = config.transmit_power_dbm
             log.debug('Transmit power set to {}', self._transmit_power)
-
-        # if 'transmission_enabled' in config:
         
         self._transmission_enabled = config.transmission_enabled
         log.debug('Transmission enabled set to {}', self._transmission_enabled)
@@ -107,20 +79,6 @@ class GeneratorController(Controller):
                 self._generator.output.state.set_value(self._transmission_enabled)
 
             log.info(f"[GENERATOR] {self._model} Configured: Frequency = {self._frequency} Hz, Power = {self._transmit_power} dBm, Enabled = {self._transmission_enabled}")
-    
-    def _noise(self):
-
-        # TODO: Czy to jest gdziekolwiek uzywane?
-        if self._test_mode:
-            log.info('(TEST) Generator set to noise mode')
-            return
-        if not self._test_mode and self._generator:
-            self._generator.output.state.set_value(False)
-            log.info("[GENERATOR] Set to noise mode")
-
-
-
-
 
 
 

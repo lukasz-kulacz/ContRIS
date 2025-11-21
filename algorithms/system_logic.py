@@ -91,11 +91,11 @@ class RxesHandler(DeviceHandler):
 
         self._ready[device_id] = False
         return {
-            'frequency': self._parameters.frequency_hz,
+            'frequency_hz': self._parameters.frequency_hz,
             'samp_rate': self._parameters.rx_samp_rate,
-            'rx_gain': self._parameters.rx_gain_db,
+            'gain_db': self._parameters.rx_gain_db,
             'buffer_size' : self._parameters.rx_buffer_size,
-            'N' : self._parameters.rx_repeates
+            'repeats' : self._parameters.rx_repeats
         }
 
     def received_ready(self, device_id) -> None:
@@ -132,14 +132,14 @@ class SystemLogic:
 
         if self._measurment_queued:
             self._measurment_queued = False
+            self.rxes.wait()
             return True
         
-        return True
+        return False
         
     def generate_configuration_change_requests(self) -> Tuple[GeneratorConfigChangeRequest | None, Dict[str, RisConfigChangeRequest] | None]:
         if not self.ready() or self._measurment_queued:
             return (None, None)
-
 
         if not self._algorithm.data_collection_finished():
             request = self._algorithm.data_collection_request()
@@ -152,7 +152,7 @@ class SystemLogic:
             self.rises.wait()
             self._measurment_queued = True
 
-            return  gen_req, ris_req
+            return gen_req, ris_req
 
         if self._data_collection_phase:
             log.info('Starting experiment phase.') 

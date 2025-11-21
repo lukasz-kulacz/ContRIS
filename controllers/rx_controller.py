@@ -1,130 +1,15 @@
-import re
-import time
-import subprocess
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 from loguru import logger as log
 
 from controllers.controller import Controller
-from helpers.parameters import Parameters
-
+from helpers.parameters import RxConfigChangeRequest
 
 usrp = None  # global handler for USRP (only one instance per controller / process)
 
 
 class RxController(Controller):
-
-    def _list_available_usrp_serials(self) -> Tuple[List[str], List[Dict]]:
-        try:
-            import uhd
-            global usrp
-            try:
-                out = subprocess.check_output(["uhd_find_devices"], text=True)
-                serials = re.findall(r"serial=(\w+)", out)
-
-            except Exception as e:
-                log.warning(f"Could not execute uhd_find_devices: {e}")
-        except Exception:
-            log.debug("UHD module not available.")
-        
-    def _init_usrp_from_params(self) -> bool:
-        global usrp
-        if self._test_mode:
-            print(f"(TEST) USRP init ok")
-            usrp = "TEST USRP"
-            return True
-        else:
-            try:
-                import uhd
-                params = Parameters()
-                usrp_args = params.get_usrp_args(self._component_id)
-                usrp = uhd.usrp.MultiUSRP(usrp_args) 
-                self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id)
-                log.info(f"USRP reinitialized successfully (ID: {self._component_id}).")
-                return True
-            except Exception as e:
-                self._list_available_usrp_serials()
-                log.error(f"USRP reinitialization failed: {e}")
-                usrp = None
-                return False
-    
-    def _notify_reinit(self, reason: str) -> None:
-        payload = {
-            'action' : 'component-reinit',
-            'component' : 'rx',
-            'id': self._component_id,
-            'reason' : reason,
-            'need_config' : True
-            
-        }
-
-        self._send_message(payload)
-        log.warning(f"[RX {self._component_id}] Sent reinit request (need_config=True). Reason: {reason}")
-        
-    def _reset_usrp_with_backoff(self, reason: str) -> bool:
-        global usrp
-        if self._test_mode:
-            log.info("(TEST) Ignoring USRP reset (no hardware).")
-            return True
-        
-        self._consecutive_failures += 1
-        wait_s = min(2**(self._consecutive_failures - 1), 60)
-        log.warning(f"[RX {self._component_id}] Resetting USRP due to: {reason}. Sleeping {wait_s}s...")
-        try:
-            del usrp
-        except Exception:
-            pass
-        
-        time.sleep(wait_s)
-        ok = self._init_usrp_from_params()
-        
-        if ok:
-            log.info(f"[RX {self._component_id}] USRP recovered after reset.")
-            self._consecutive_failures = 0
-            self._awaiting_reconfig = True
-            self._notify_reinit(reason)
-        return ok
-        
-    def _recv_samples_safe(self) -> np.ndarray:
-        global usrp
-        assert self._test_mode == False, 'Cannot receive samples in test mode.'
-        
-        attempt = 0
-        while attempt < self._parameters.rx_max_attempts_per_read:
-            attempt += 1
-            try:
-                samples = usrp.recv_num_samps(
-                    self._buffer_size,
-                    self._frequency,
-                    self._samp_rate,
-                    [0],
-                    self._rx_gain
-                )
-
-                self._consecutive_failures = 0
-                return samples
-            except Exception as e:
-                msg = str(e)
-                log.error(f"[RX {self._component_id}] recv_num_samps exception "
-                          f"(attempt {attempt}/{self._parameters.rx_max_attempts_per_read}): {msg}")
-
-                transient = any(s in msg for s in[
-                    "LIBUSB_TRANSFER_OVERFLOW",
-                    "LIBUSB_TRANSFER_ERROR",
-                    "LIBUSB_ERROR_NO_DEVICE",
-                    "transfer overflow",
-                    "accum_timeout",
-                    "timeout",
-                    "safe-call"
-                ])
-
-                if transient:
-                    if not self._reset_usrp_with_backoff(msg):
-                        continue
-                else:
-                    raise  # TODO: raise co?
-        raise RuntimeError(f"[RX {self._component_id}] Failed to retrieve samples after multiple attempts.")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -143,7 +28,6 @@ class RxController(Controller):
 
         if self._test_mode:
             log.info(f"(test mode) Simulating USRP connection for RX {self._component_id}")
-            self._init_usrp_from_params() # TODO: po co to?
         else:
             import uhd
             global usrp
@@ -154,62 +38,58 @@ class RxController(Controller):
             except KeyError:
                 log.error(f"No USRP serial number found in parameters for RX ID '{self._component_id}'")
             except Exception as ex:
-                self._list_available_usrp_serials()
+                # self._list_available_usrp_serials()
                 log.error(f"[RX {self._component_id}] Failed to initialize USRP: {ex}")
                 
-                # self._usrp_usb_sn = params.usrp.serial_map.get(self._component_id) # TODO: po co to?
+    def _recv_samples_safe(self) -> np.ndarray:
+        global usrp
+        assert self._test_mode == False, 'Cannot receive samples in test mode.'
+        
+        try:
+            samples = usrp.recv_num_samps(
+                self._buffer_size,
+                self._frequency,
+                self._samp_rate,
+                [0],
+                self._rx_gain
+            )
+
+            return samples
+        except Exception as e:
+            msg = str(e)
+            log.error(f"[RX {self._component_id}] recv_num_samps exception: {msg}")
+            self._send_message({'action': 'restart'})
+            return np.array([0.0])
 
     def _on_message_received(self, message: Dict):
         match message['action']:
             case 'new-ack':
                 config = message['data']
+                config = RxConfigChangeRequest(**config)
                 self._configure_rx(config)
                 self._send_message({'action': 'ready'})
             case 'configure':
                 config =  message['data']
+                config = RxConfigChangeRequest(**config)
                 self._configure_rx(config)
                 self._send_message({'action' : 'configure-ack'})
-                self._send_message({'action' : 'ready'})
             case 'measure':
                 config = message['data']
                 result = self._measure(config)
                 self._send_message({'action': 'measure-ack', 'data': result})
-            case 'reinit':
-                log.warning('[RX {}] REINIT requested', self._component_id)
-
-                if self._test_mode:
-                    log.info("(TEST) Ignoring REINIT request.")
-                    return
-
-                ok = self._init_usrp_from_params()
-                if ok:
-                    log.success("[RX {}] USRP reinitialized successfully.", self._component_id)
-
-            case 'done':
-                log.warning("[RX] Finish")
-
             case _:
                 log.warning('this action is not defined!')
 
-    def _configure_rx(self, config: Dict):
+    def _configure_rx(self, config: RxConfigChangeRequest):
         if self._test_mode:
-            log.info('(TEST) RX {} configured', self._component_id)
-
-        if 'frequency' in config:
-            self._frequency = config['frequency']
-
-        if 'samp_rate' in config:
-            self._samp_rate = config['samp_rate']
-
-        if 'rx_gain' in config:
-            self._rx_gain = config['rx_gain']
-            
-        if 'buffer_size' in config:
-            self._buffer_size = config['buffer_size']
-            
-        if 'N' in config: 
-            self._N = config['N']
+            log.info('(test mode) RX {} configured', self._component_id)
         
+        self._frequency = config.frequency_hz
+        self._samp_rate = config.samp_rate
+        self._rx_gain = config.gain_db
+        self._buffer_size = config.buffer_size
+        self._N = config.repeats
+
         if not self._test_mode:
             log.info(f"RX Configured: Frequency = {self._frequency} Hz, Gain = {self._rx_gain} dB, sample rate = {self._samp_rate} S/s")
  
@@ -221,7 +101,11 @@ class RxController(Controller):
             self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
             self._avg_power_history += pow(10.0, result / 10.0) * (1.0 - self._log_history_coeff)
             self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
-            log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
+            log.info(f"(test mode) Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
+            if (np.random.rand() < self._parameters.test_mode_rx_fail_chance):
+                self._send_message({'action': 'restart'})
+                log.error('(test mode) RX failed')
+                return [0.0]
             return [result] 
         else:
             power_measurements = []

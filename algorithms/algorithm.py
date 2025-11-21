@@ -98,7 +98,6 @@ class ExampleAlgorithm(Algorithm):
 
     def reset(self) -> None:
         self.data[:] = np.nan
-        log.info("Searching best pattern...")
 
     def data_collection_finished(self):
         return not np.isnan(self.data).any()
@@ -128,6 +127,10 @@ class ExampleAlgorithm(Algorithm):
         else:
             assert False, 'Only 1 or 2 RIS supported'
 
+        log.info('Algorithm step: {}/{}',
+                  self.config_itr + 1 + self.signal_power_itr * self.configs.shape[0],
+                 self.configs.shape[0] * len(self.signal_power)
+                )
         self.waiting_for = self._rx_count
         return generator_request, ris_requests
 
