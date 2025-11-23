@@ -19,13 +19,17 @@ log.add(
 
 # 2. set parameters
 parameters = Parameters(
-    frequency_hz=2.3e9
+    frequency_hz=2.3e9,
+    test_mode= False,
+    system_controller_ip_address = '192.168.8.219'
+
+
 )
 
 # 3. set algorithm
 algorithm = ExampleAlgorithm(
     parameters=parameters,
-    signal_power= [10.0, None, -5],
+    signal_power = ([10.0] * 1), # + [5.0] * 2 + [None] * 10),
     pattern_ids=[0],
     results_dir="results" 
 )
@@ -33,7 +37,7 @@ algorithm = ExampleAlgorithm(
 # 4. set experiment
 experiment = ExampleExperiment(
     parameters=parameters,
-    power_setup=[-30] ,
+    power_setup=([-30] * 10 + [None] * 30 + [15] * 30 + [0] * 100 + [None] * 100 + [-10] * 50 + [-20] * 100000) ,
     results_dir="results" 
 )
 

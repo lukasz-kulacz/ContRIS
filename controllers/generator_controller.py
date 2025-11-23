@@ -20,9 +20,14 @@ class GeneratorController(Controller):
         self._transmission_enabled = self._parameters.generator_transmission_enabled
         
         if not self._test_mode:
-            resource = 'TCPIP::{self._ip_address}::{self._port}::{self._connection_type}'.format(
-                self._parameters.generator_ip_address, self._parameters.generator_port, "SOCKET"
-            )
+            resource = f"TCPIP::{self._parameters.generator_ip_address}::{self._parameters.generator_port}::SOCKET"
+
+            # resource = 'TCPIP::{self._ip_address}::{self._port}::{self._connection_type}'.format(
+            #     self._parameters.generator_ip_address, self._parameters.generator_port, "SOCKET"
+            # ) w tak zapisanym resource on ma problem: in __init__
+            # resource = 'TCPIP::{self._ip_address}::{self._port}::{self._connection_type}'.format(
+            # KeyError: 'self'
+
             try:
                 if self._model == GeneratorModel.SMM100A:
                     from RsSmw import RsSmw

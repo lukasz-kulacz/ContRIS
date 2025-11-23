@@ -54,7 +54,7 @@ class ExampleExperiment(Experiment):
         if self._waiting_for > 0:
             return None
 
-        log.debug('Experiment step {}/{}: power {} ', 
+        log.info('Experiment step {}/{}: power {} ', 
                 self._itr + 1, len(self._power_setup), self._power_setup[self._itr])
 
         generator_requests = GeneratorConfigChangeRequest(
