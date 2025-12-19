@@ -1,51 +1,78 @@
-import zmq
-from loguru import logger as log
-# import time
-import json
-# from RsSmw import *
+from typing import Dict, List
 
 import numpy as np
-from typing import Dict, Callable, List
-from helpers.zmq_connection import ZmqClient
+from loguru import logger as log
+
 from controllers.controller import Controller
-import time
+from helpers.parameters import RxConfigChangeRequest
 
-
-usrp = None 
+usrp = None  # global handler for USRP (only one instance per controller / process)
 
 
 class RxController(Controller):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self._avg_power_history = -100.0 
-        self._log_history_coeff = 0.95
+    
+        self._avg_power_history = self._parameters.rx_initial_avg_power_history_dbm
+        self._log_history_coeff = self._parameters.rx_log_history_coeff
 
         self._frequency = None
         self._samp_rate = None
         self._rx_gain = None
-        self._buffer_size = None #327680
-        self._N = None #8
+        self._buffer_size = None 
+        self._N = None 
+        self._usrp_usb_sn = None
+
+        self._consecutive_failures = 0 
 
         if self._test_mode:
-            print(f"Symulacja połączenia z USRP")
+            log.info(f"(test mode) Simulating USRP connection for RX {self._component_id}")
         else:
-            #time.sleep(10)
             import uhd
             global usrp
-            if self._component_id == '0':
-            	usrp = uhd.usrp.MultiUSRP("serial=3113F10")
-            # elif self._component_id == '1':
-           # 	usrp = uhd.usrp.MultiUSRP("serial=3273ACF")
 
+            try:
+                usrp = uhd.usrp.MultiUSRP(f'serial={self._parameters.rx_usrp_serial_map[self._component_id]}')
+                log.info(f"[RX {self._component_id}] Connected to USRP.")
+            except KeyError:
+                log.error(f"No USRP serial number found in parameters for RX ID '{self._component_id}'")
+            except Exception as ex:
+                # self._list_available_usrp_serials()
+                log.error(f"[RX {self._component_id}] Failed to initialize USRP: {ex}")
+                
+    def _recv_samples_safe(self) -> np.ndarray:
+        global usrp
+        assert self._test_mode == False, 'Cannot receive samples in test mode.'
+        
+        try:
+            samples = usrp.recv_num_samps(
+                self._buffer_size,
+                self._frequency,
+                self._samp_rate,
+                [0],
+                self._rx_gain
+            )
+
+            return samples
+        except Exception as e:
+            msg = str(e)
+            log.error(f"[RX {self._component_id}] recv_num_samps exception: {msg}")
+            self._send_message({'action': 'restart'})
+            return np.array([0.0])
 
     def _on_message_received(self, message: Dict):
         match message['action']:
             case 'new-ack':
                 config = message['data']
+                config = RxConfigChangeRequest(**config)
                 self._configure_rx(config)
                 self._send_message({'action': 'ready'})
+            case 'configure':
+                config =  message['data']
+                config = RxConfigChangeRequest(**config)
+                self._configure_rx(config)
+                self._send_message({'action' : 'configure-ack'})
             case 'measure':
                 config = message['data']
                 result = self._measure(config)
@@ -53,36 +80,19 @@ class RxController(Controller):
             case _:
                 log.warning('this action is not defined!')
 
-    def _configure_rx(self, config: Dict):
+    def _configure_rx(self, config: RxConfigChangeRequest):
         if self._test_mode:
-            log.info('(TEST) RX {} configured', self._component_id)
-            return
-
-        if 'frequency' in config:
-            # set or update frequency
-            self._frequency = config['frequency']
-
-        if 'samp_rate' in config:
-            # set or update sampling rate
-            self._samp_rate = config['samp_rate']
-
-        if 'rx_gain' in config:
-            # set or update rx gain
-            self._rx_gain = config['rx_gain']
-            
-        if 'buffer_size' in config:
-            self._buffer_size = config['buffer_size']
-            
-        if 'N' in config: #gdzie w innym miejscu N zalezna jest od tego inijka 78
-            self._N = config['N']
+            log.info('(test mode) RX {} configured', self._component_id)
         
-        if self._test_mode ==  False:
-        #     #configure usrp
-            # self.usrp.set_rx_rate(self._samp_rate)
-            # self.usrp.set_rx_freq(self._frequency,1)
-            # self.usrp.set_rx_gain(self._rx_gain,1)
+        self._frequency = config.frequency_hz
+        self._samp_rate = config.samp_rate
+        self._rx_gain = config.gain_db
+        self._buffer_size = config.buffer_size
+        self._N = config.repeats
+
+        if not self._test_mode:
             log.info(f"RX Configured: Frequency = {self._frequency} Hz, Gain = {self._rx_gain} dB, sample rate = {self._samp_rate} S/s")
-            #time.sleep(10)
+ 
 
 
     def _measure(self, config: Dict) -> List[float]:
@@ -91,20 +101,22 @@ class RxController(Controller):
             self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
             self._avg_power_history += pow(10.0, result / 10.0) * (1.0 - self._log_history_coeff)
             self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
-            log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
-            return [result] #symulation
-        
-        power_measurements = []
-        while len(power_measurements) < self._N:
-            #print(self._buffer_size, self._frequency, self._samp_rate, self._rx_gain)
-            samples = usrp.recv_num_samps(self._buffer_size, self._frequency, self._samp_rate, [0], self._rx_gain)
-            #samples = [30.0, 12.2,23.0]
-            power_lin = np.mean(np.abs(samples) ** 2)
-            power_log = 10 * np.log10(power_lin)
-            power_measurements.append(float(power_log))
+            log.info(f"(test mode) Avg: {self._avg_power_history:.2f} dBm; Current: {result:.2f} dBm")
+            if (np.random.rand() < self._parameters.test_mode_rx_fail_chance):
+                self._send_message({'action': 'restart'})
+                log.error('(test mode) RX failed')
+                return [0.0]
+            return [result] 
+        else:
+            power_measurements = []
+            while len(power_measurements) < self._N:
+                samples = self._recv_samples_safe()
+                power_lin = np.mean(np.abs(samples) ** 2)
+                power_log = 10 * np.log10(power_lin)
+                power_measurements.append(float(power_log))
 
-            self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
-            self._avg_power_history += power_lin * (1.0 - self._log_history_coeff)
-            self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
-            log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {power_log:.2f} dBm")
-        return power_measurements
+                self._avg_power_history = pow(10.0, self._avg_power_history / 10.0) * self._log_history_coeff
+                self._avg_power_history += power_lin * (1.0 - self._log_history_coeff)
+                self._avg_power_history = 10.0 * np.log10(self._avg_power_history)
+                log.info(f"Avg: {self._avg_power_history:.2f} dBm; Current: {power_log:.2f} dBm")
+            return power_measurements
