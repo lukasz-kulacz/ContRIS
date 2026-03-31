@@ -20,8 +20,8 @@ log.add(
 # 2. set parameters
 parameters = Parameters(
     frequency_hz=2.3e9,
-    test_mode= False,
-    system_controller_ip_address = '192.168.8.219'
+    test_mode= True,
+    system_controller_ip_address = 'localhost' # '192.168.8.219'
 
 
 )
