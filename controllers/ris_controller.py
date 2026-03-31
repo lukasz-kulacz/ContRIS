@@ -1,67 +1,119 @@
-import time
-from typing import Dict
-
-from serial import Serial
 from loguru import logger as log
+import json
+import zmq
 
-from controllers.controller import Controller
-from helpers.parameters import RisConfigChangeRequest
+from typing import Callable, Dict
 
 
-class RisController(Controller):
+class RestartRequired(Exception):
+    pass
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ser = None
+class ZmqBase:
 
-        port = self._parameters.ris_serial_map[self._component_id]
-        log.info(f"[RIS {self._component_id}] uses serial port {port}")
+    def __init__(self,
+                 timeout_ms: int = 100
+                 ):
+        self._timeout_ms = timeout_ms
 
-        if not self._test_mode:
-            try:
-                self.ser = Serial(port, baudrate=self._parameters.ris_serial_boudrate, timeout=self._parameters.ris_serial_timeout)
-                self.ser.flushInput()
-                self.ser.flushOutput()
-                log.info(f"[RIS {self._component_id}] Serial connection established.")
-            except Exception as e:
-                raise RuntimeError(f"Failed to open serial port {port}: {e}")
+        self._poller = zmq.Poller()
+        self._context = zmq.Context()
 
-    def _on_message_received(self, message: Dict):
-        match message['action']:
-            case 'new-ack':
-                self._send_message({'action': 'ready'})
-                
-            case 'configure':
-                config = message['data']
-                config = RisConfigChangeRequest(**config)
-                self._configure_ris(config)
-                self._send_message({'action': 'configure-ack'})
-            case _:
-                log.warning(f"[RIS {self._component_id}] Unknown action received.")
+    def receive_messages(self, 
+                         on_message_received: Callable,
+                         ) -> None:
+        raise NotImplementedError
 
-    def _configure_ris(self, config: RisConfigChangeRequest):
-        log.info(f"SET {config.pattern_index}: {config.pattern_hex}")
-        if self._test_mode:
-            return
+    def send_message(self, message: Dict) -> None:
+        raise NotImplementedError
 
-        self._pattern = config.pattern_hex
-        self._set_pattern(self._pattern.encode("utf-8"))
-            
-    def _set_pattern(self, pattern: str) -> bool:
-        if not pattern:
-            log.error("Invalid pattern received")
-            return False
-        
-        self.ser.flushInput()
-        self.ser.flushOutput()
-        self.ser.write(b"!" + pattern + b"\n")
-        start_time = time.time()
-        while True:
-            response = self.ser.readline()
-            if response.strip() == b"#OK":
-                return True
-            if time.time() - start_time > self._parameters.ris_serial_timeout:
-                log.error("RIS: Timeout during pattern setting.")
-                return False
+    def _decode_message(self, message: bytes) -> Dict:
+        return json.loads(message.decode('utf-8'))
 
-        
+    def _encode_message(self, message: Dict) -> bytes:
+        return json.dumps(message).encode('utf-8')
+
+    def _poll(self) -> Dict:
+        return dict(self._poller.poll(timeout=self._timeout_ms))
+
+
+class ZmqServer(ZmqBase):
+    def __init__(self,
+                 port_pub: int | None = None,
+                 port_pull: int | None = None,
+                 timeout_ms: int = 100
+                 ):
+        super().__init__(timeout_ms)
+
+        self._socket_pub = self._create_and_bind_socket(
+            port_pub, zmq.PUB
+        )
+        self._socket_pull = self._create_and_bind_socket(
+            port_pull, zmq.PULL
+        )
+
+    def receive_messages(self, 
+                         on_message_received: Callable,
+                         ) -> None:
+        sockets = self._poll()
+
+        if self._socket_pull in sockets:
+            on_message_received(self._decode_message(self._socket_pull.recv()))
+
+    def send_message(self, message: Dict) -> None:
+        if self._socket_pub is None:
+            raise ValueError('Push socket not configured!')
+        log.debug('Sending {}', message)
+        self._socket_pub.send(self._encode_message(message))
+
+    def _create_and_bind_socket(self, port: int, socket_type: int) -> zmq.Socket | None:
+        if port is None:
+            return None
+        socket = self._context.socket(socket_type)
+        socket.bind(
+             f"tcp://*:{port}"
+        )
+        if socket_type == zmq.PULL:
+            self._poller.register(socket, zmq.POLLIN)
+        return socket
+
+
+class ZmqClient(ZmqBase):
+    def __init__(self,
+                 address_system_controller: str,
+                 port_sub: int | None = None,
+                 port_push: int | None = None,
+                 timeout_ms: int = 100
+                 ):
+        super().__init__(timeout_ms)
+
+        self._socket_sub = self._create_and_connect_socket(
+            address_system_controller, port_sub, zmq.SUB
+        )
+        self._socket_push = self._create_and_connect_socket(
+            address_system_controller, port_push, zmq.PUSH
+        )
+
+    def receive_messages(self, 
+                         on_message_received: Callable,
+                         ) -> None:
+        sockets = self._poll()
+
+        if self._socket_sub in sockets:
+            on_message_received(self._decode_message(self._socket_sub.recv()))
+
+    def send_message(self, message: Dict) -> None:
+        if self._socket_push is None:
+            raise ValueError('Push socket not configured!')
+        self._socket_push.send(self._encode_message(message))
+
+    def _create_and_connect_socket(self, address: str, port: int, socket_type: int) -> zmq.Socket | None:
+        if port is None:
+            return None
+        socket = self._context.socket(socket_type)
+        socket.connect(
+             f"tcp://{address}:{port}"
+        )
+        if socket_type == zmq.SUB:
+            socket.setsockopt_string(zmq.SUBSCRIBE, "")
+            self._poller.register(socket, zmq.POLLIN)
+        return socket

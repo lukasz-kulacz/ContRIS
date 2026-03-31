@@ -67,8 +67,8 @@ class Parameters(BaseModel):
 
     ''' ris parameters '''
     ris_serial_map: Dict[str, str] = Field(default={
-        '0': '/dev/ttyUSB0',
-        '1': '/dev/ttyUSB1',
+        '0': '/dev/moj_ris0',
+        '1': '/dev/moj_ris1',
     })
     ris_settings: Dict[str, Tuple[int, str]] = Field(default={
         '0': (None, None)
