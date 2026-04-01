@@ -3,7 +3,7 @@ from typing import Dict
 
 from loguru import logger as log
 
-from helpers.helpers import ZmqClient, RestartRequired
+from helpers.helpers import ZmqClient, RestartRequired, Exit
 from helpers.parameters import Parameters
 
 
@@ -38,6 +38,7 @@ class Controller:
     
     def _on_finish(self) -> None:
         log.success('Component {} ({}) finished', self._component_name, self._component_id)
+        raise Exit()
 
     def _on_message_received_base(self, message: Dict) -> None:
         if not self._connected:
