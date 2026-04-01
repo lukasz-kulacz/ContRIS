@@ -58,12 +58,12 @@ class ExampleAlgorithm(Algorithm):
         else:
             self.configs2 = np.array(list(self.all_patterns.keys()))
             self.configs = np.zeros((len(self.configs2) * self._ris_count, self._ris_count), dtype=int)
-            self.i = 0
-            self.j = 0
-            self.k = 0
+            i = 0
+            j = 0
+            k = 0
 
             while(i < self._ris_count):
-                while (j < len(self._configs2)):
+                while (j < len(self.configs2)):
                     self.configs[k][i] = self.configs2[j]
                     j+=1
                     k+=1
@@ -102,14 +102,12 @@ class ExampleAlgorithm(Algorithm):
                 pattern_index=int(self.configs[self.config_itr]),
                 pattern_hex=self.all_patterns[self.configs[self.config_itr]]
             )
-        elif self._ris_count == 2:
-            for ris_id in ['0', '1']: 
+        else:
+            for ris_id in [str(i) for i in range(self._ris_count)]:  #tworzenie odpowiedniej listy w zaleznosci od ilosci RISów (np. dla ris_count = 3 powstaje tablica ['0', '1', '2'])
                 ris_requests[ris_id] = RisConfigChangeRequest(
                     pattern_index=int(self.configs[self.config_itr, int(ris_id)]),
                     pattern_hex=self.all_patterns[self.configs[self.config_itr, int(ris_id)]]
                 )
-        else:
-            assert False, 'Only 1 or 2 RIS supported'
 
         log.info('Algorithm step: {}/{}',
                   self.config_itr + 1 + self.signal_power_itr * self.configs.shape[0],
@@ -170,13 +168,12 @@ class ExampleAlgorithm(Algorithm):
                 pattern_index=int(self.configs[self.selected_config]),
                 pattern_hex=self.all_patterns[self.configs[self.selected_config]]
             )
-        elif self._ris_count == 2:
-            for ris_id in ['0', '1']:
+        else:
+            for ris_id in [str(i) for i in range(self._ris_count)]:
                 ris_requests[ris_id] = RisConfigChangeRequest(
                     pattern_index=int(self.configs[self.selected_config, int(ris_id)]),
                     pattern_hex=self.all_patterns[self.configs[self.config_itr, int(ris_id)]]
                 )
-        else:
-            assert False, 'Only 1 or 2 RIS supported'
+
         return ris_requests
 

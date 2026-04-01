@@ -69,10 +69,13 @@ class Parameters(BaseModel):
     ris_serial_map: Dict[str, str] = Field(default={
         '0': '/dev/moj_ris0',
         '1': '/dev/moj_ris1',
+        '2': '/dev/moj_ris2'
     })
     ris_settings: Dict[str, Tuple[int, str]] = Field(default={
-        '0': (None, None)
+        '0': (None, None),
+        '1': (None, None),
+        '2': (None, None)
     })
-    ris_count: int = 1
+    ris_count: int = 3
     ris_serial_boudrate: int = 115200
     ris_serial_timeout: float = 10.0
