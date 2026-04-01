@@ -58,12 +58,12 @@ class ExampleAlgorithm(Algorithm):
         else:
             self.configs2 = np.array(list(self.all_patterns.keys()))
             self.configs = np.zeros((len(self.configs2) * self._ris_count, self._ris_count), dtype=int)
-            self.i = 0
-            self.j = 0
-            self.k = 0
+            i = 0
+            j = 0
+            k = 0
 
             while(i < self._ris_count):
-                while (j < len(self._configs2)):
+                while (j < len(self.configs2)):
                     self.configs[k][i] = self.configs2[j]
                     j+=1
                     k+=1
