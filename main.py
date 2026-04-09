@@ -23,8 +23,8 @@ log.add(
 parameters = Parameters(
     frequency_hz=2.3e9,
     test_mode=False,
-    ris_count=2,
-    system_controller_ip_address = '192.168.8.219'
+    ris_count=3,
+    #system_controller_ip_address = '192.168.0.30'
 )
 
 # 3. set algorithm
@@ -52,6 +52,9 @@ if __name__ == '__main__':
         controller_type = sys.argv[1].strip().lower()
         controller_id = int(sys.argv[2])    
 
+    if (controller_type == 'ris') and (controller_id == 2):
+        parameters.test_mode = True
+    
     while True:
         # create controller
         controller = create_controller(

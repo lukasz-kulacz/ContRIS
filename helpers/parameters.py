@@ -48,7 +48,7 @@ class Parameters(BaseModel):
     ''' generator parameters '''
     generator_transmit_power_dbm: float = -20.0
     generator_transmission_enabled: bool = True
-    generator_ip_address: str = "192.168.8.30"
+    generator_ip_address: str = "192.168.0.30"
     generator_port: int = 5025
     generator_selected_model: GeneratorModel = GeneratorModel.SMBV100A
 
@@ -60,7 +60,7 @@ class Parameters(BaseModel):
     rx_samp_rate: float = 500e3
     rx_gain_db: float = 40.0
     rx_buffer_size: int = int(40e3) 
-    rx_count: int = 1
+    rx_count: int = 2
     rx_repeats: int = 1  
     rx_initial_avg_power_history_dbm: float = -100.0
     rx_log_history_coeff: float = 0.95
