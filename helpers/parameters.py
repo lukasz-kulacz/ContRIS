@@ -55,9 +55,7 @@ class Parameters(BaseModel):
     ''' rx / usrp parameters '''
     rx_usrp_serial_map: Dict[str, str] = Field(default={
        '0': '3273ADC',
-       '1': '3273ACF',
-       '2': '3273AD0',
-       '3': '3273AD1',
+       '1': '3113F3B',
     })
     rx_samp_rate: float = 500e3
     rx_gain_db: float = 40.0
