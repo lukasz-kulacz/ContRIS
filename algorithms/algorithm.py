@@ -204,4 +204,3 @@ class ExampleAlgorithm(Algorithm):
                     pattern_hex=self.all_patterns[self.configs[self.config_itr, int(ris_id)]]
                 )
         return ris_requests
-

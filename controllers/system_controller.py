@@ -1,4 +1,3 @@
-
 import time
 import sys
 from typing import Dict
@@ -201,4 +200,3 @@ class SystemController:
                 self._send_message({'action': 'restart'})
             case _:
                 log.warning('Unknown RX action')
-    

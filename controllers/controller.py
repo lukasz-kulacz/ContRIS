@@ -75,3 +75,4 @@ class Controller:
 
         self._connection.send_message(message)
         log.debug('Component {} send: {}', self._component_name, message)
+

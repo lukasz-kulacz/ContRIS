@@ -181,4 +181,3 @@ class SystemLogic:
         else:
             self._experiment.store_results(device_id, results)
             log.info("Got experiment measurement from {}: {}", device_id, results)
-
