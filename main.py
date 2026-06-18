@@ -22,9 +22,9 @@ log.add(
 # 2. set parameters
 parameters = Parameters(
     frequency_hz=2.3e9,
-    test_mode=False,
+    test_mode=True,
     ris_count=1
-    # system_controller_ip_address = '192.168.8.219'
+    system_controller_ip_address = '192.168.8.180'
 )
 
 # 3. set algorithm
