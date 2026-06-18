@@ -48,13 +48,13 @@ class Parameters(BaseModel):
     ''' generator parameters '''
     generator_transmit_power_dbm: float = -20.0
     generator_transmission_enabled: bool = True
-    generator_ip_address: str = "192.168.8.30"
+    generator_ip_address: str = "192.168.8.163"
     generator_port: int = 5025
     generator_selected_model: GeneratorModel = GeneratorModel.SMBV100A
 
     ''' rx / usrp parameters '''
     rx_usrp_serial_map: Dict[str, str] = Field(default={
-       '0': '3273ADC',
+       '0': '3113F3B',
        '1': '3273ACF',
        '2': '3273AD0',
        '3': '3273AD1',
