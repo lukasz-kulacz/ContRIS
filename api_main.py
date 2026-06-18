@@ -10,6 +10,9 @@ from fastapi import FastAPI
 app = FastAPI()
 
 TEST_MODE = True
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR
+PYTHON_BIN = sys.executable
 
 processes: Dict[str, subprocess.Popen] = {}
 logs: Dict[str, deque] = {}
@@ -52,7 +55,7 @@ def read_process_output(key: str, process: subprocess.Popen):
 
 
 def start_controller(controller_type: str, controller_id: Optional[int] = None):
-    key = process_key(controller_type, controller_id)
+    key = make_key(controller_type, controller_id)
 
     existing = processes.get(key)
 
@@ -97,7 +100,7 @@ def start_controller(controller_type: str, controller_id: Optional[int] = None):
 
 
 def stop_controller(controller_type: str, controller_id: Optional[int] = None):
-    key = process_key(controller_type, controller_id)
+    key = make_key(controller_type, controller_id)
 
     process = processes.get(key)
 
@@ -179,59 +182,7 @@ def stop_rx(controller_id: int):
     return stop_controller("rx", controller_id)
 
 
-@app.post("/git/pull")
-async def git_pull():
-    """
-    Wykonuje git pull w folderze projektu na hoście,
-    na którym uruchomiony jest FastAPI.
-    """
-
-    try:
-        result = subprocess.run(
-            ["git", "pull"],
-            cwd=PROJECT_DIR,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-
-        if result.returncode == 0:
-            return {
-                "success": True,
-                "message": "Git pull completed successfully",
-                "project_dir": str(PROJECT_DIR),
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-            }
-
-        return {
-            "success": False,
-            "message": "Git pull failed",
-            "project_dir": str(PROJECT_DIR),
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "message": "Git pull timeout exceeded",
-            "project_dir": str(PROJECT_DIR),
-            "stdout": "",
-            "stderr": "The git pull command took too long and was interrupted.",
-        }
-
-    except Exception as error:
-        return {
-            "success": False,
-            "message": "Git pull could not be executed",
-            "project_dir": str(PROJECT_DIR),
-            "stdout": "",
-            "stderr": str(error),
-        }
-
-
-@app.post("/git/pull")
+@app.get("/git/pull")
 async def git_pull():
     """
     Wykonuje git pull w folderze projektu na hoście,

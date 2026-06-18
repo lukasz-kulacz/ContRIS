@@ -9,16 +9,24 @@ st.title("Panel sterowania ContRIS")
 DEFAULT_PORT = 8000
 
 
+def session_port(ip_key: str) -> int:
+    return int(st.session_state.get(f"port_{ip_key}", DEFAULT_PORT))
+
+
 def api_url(ip: str, port: int, endpoint: str) -> str:
     ip = ip.strip()
     return f"http://{ip}:{port}{endpoint}"
 
 
-def call_api(ip: str, endpoint: str, port: int = DEFAULT_PORT):
+def call_api(ip: str, endpoint: str, port: int = DEFAULT_PORT, method: str = "GET"):
     url = api_url(ip, port, endpoint)
 
     try:
-        response = requests.get(url, timeout=5)
+        if method == "POST":
+            response = requests.post(url, timeout=60)
+        else:
+            response = requests.get(url, timeout=5)
+
         try:
             data = response.json()
         except Exception:
@@ -43,25 +51,30 @@ def call_api(ip: str, endpoint: str, port: int = DEFAULT_PORT):
 
 
 def call_logs(ip: str, controller_name: str, port: int = DEFAULT_PORT, lines: int = 100):
-
     endpoint = f"/logs?controller={controller_name}&lines={lines}"
-    url = api_url(ip, port, endpoint)
-def call_api(endpoint: str, method: str = "GET", timeout: int = 5):
-    """
-    Wysyła żądanie do FastAPI.
-    """
-    url = f"{API_BASE_URL}{endpoint}"
+    return call_api(ip, endpoint, port)
 
-    try:
-        response = requests.get(url, timeout=5)
-        return response.json()
-    except requests.exceptions.RequestException as error:
-        return {
-            "ok": False,
-            "message": "Nie udało się pobrać logów",
-            "error": str(error),
-            "message": "Nie udało się połączyć z FastAPI"
-        }
+
+def show_result(result: dict):
+    data = result.get("data", {})
+    message = data.get("message", "")
+    succeeded = result.get("ok") and data.get("success", True)
+
+    if succeeded:
+        st.success(message or "OK")
+    else:
+        st.error(message or data.get("stderr") or result.get("error") or "Błąd")
+
+    st.json(result)
+
+
+def show_status():
+    with st.expander("Status głównego API"):
+        ip = st.session_state.get("ip_system", "localhost")
+        port = session_port("ip_system")
+
+        if st.button("Odśwież status", use_container_width=True):
+            show_result(call_api(ip, "/status", port))
 
 
 def make_device_control(label: str, controller_type: str, ip_key: str, controller_id=None):
@@ -146,30 +159,50 @@ with top_cols[2]:
     if st.button("Start all", use_container_width=True):
         results = []
 
-        results.append(call_api(st.session_state["ip_system"], "/start/system"))
-        results.append(call_api(st.session_state["ip_generator"], "/start/generator"))
+        results.append(call_api(st.session_state["ip_system"], "/start/system", session_port("ip_system")))
+        results.append(call_api(st.session_state["ip_generator"], "/start/generator", session_port("ip_generator")))
 
         for i in range(int(ris_count)):
             ip = st.session_state.get(f"ip_ris_{i}", st.session_state.get("ip_ris_0", ""))
-            results.append(call_api(ip, f"/start/ris/{i}"))
+            results.append(call_api(ip, f"/start/ris/{i}", session_port(f"ip_ris_{i}")))
 
         for i in range(int(rx_count)):
             ip = st.session_state.get(f"ip_rx_{i}", st.session_state.get("ip_rx_0", ""))
-            results.append(call_api(ip, f"/start/rx/{i}"))
+            results.append(call_api(ip, f"/start/rx/{i}", session_port(f"ip_rx_{i}")))
 
         st.write("Wynik Start all:")
         st.json(results)
 
 with top_cols[3]:
     if st.button("Stop all", use_container_width=True):
-        call_api("/stop/generator")
-        call_api("/stop/ris/0")
-        call_api("/stop/rx/0")
-        call_api("/stop/system")
+        results = []
+
+        results.append(call_api(st.session_state["ip_generator"], "/stop/generator", session_port("ip_generator")))
+
+        for i in range(int(ris_count)):
+            ip = st.session_state.get(f"ip_ris_{i}", st.session_state.get("ip_ris_0", ""))
+            results.append(call_api(ip, f"/stop/ris/{i}", session_port(f"ip_ris_{i}")))
+
+        for i in range(int(rx_count)):
+            ip = st.session_state.get(f"ip_rx_{i}", st.session_state.get("ip_rx_0", ""))
+            results.append(call_api(ip, f"/stop/rx/{i}", session_port(f"ip_rx_{i}")))
+
+        results.append(call_api(st.session_state["ip_system"], "/stop/system", session_port("ip_system")))
         st.toast("Wysłano komendy Stop all")
+        st.json(results)
 
 with top_cols[3]:
-    st.markdown(f"API: `{API_BASE_URL}`")
+    st.markdown(f"API system: `{api_url(st.session_state['ip_system'], session_port('ip_system'), '')}`")
+
+with top_cols[4]:
+    if st.button("Git pull", use_container_width=True):
+        result = call_api(
+            st.session_state["ip_system"],
+            "/git/pull",
+            session_port("ip_system"),
+            method="POST",
+        )
+        show_result(result)
 
 
 main_cols = st.columns(3)
@@ -193,7 +226,7 @@ with main_cols[1]:
     )
 
     for i in range(ris_count):
-        make_device_control(f"RIS {i}", "ris", i)
+        make_device_control(f"RIS {i}", "ris", f"ip_ris_{i}", i)
 
 
 with main_cols[2]:
@@ -208,7 +241,7 @@ with main_cols[2]:
     )
 
     for i in range(rx_count):
-        make_device_control(f"RX {i}", "rx", i)
+        make_device_control(f"RX {i}", "rx", f"ip_rx_{i}", i)
 
 
 show_status()
