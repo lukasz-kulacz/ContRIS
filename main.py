@@ -23,7 +23,7 @@ log.add(
 parameters = Parameters(
     frequency_hz=2.3e9,
     test_mode=True,
-    ris_count=1
+    ris_count=1,
     system_controller_ip_address = '192.168.8.180'
 )
 
