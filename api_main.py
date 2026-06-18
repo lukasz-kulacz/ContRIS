@@ -50,6 +50,7 @@ def read_process_output(key: str, process: subprocess.Popen):
 
         line = line.rstrip()
         logs[key].append(line)
+        print(line)
 
     process.stdout.close()
 
