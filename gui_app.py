@@ -46,27 +46,22 @@ def call_logs(ip: str, controller_name: str, port: int = DEFAULT_PORT, lines: in
 
     endpoint = f"/logs?controller={controller_name}&lines={lines}"
     url = api_url(ip, port, endpoint)
+def call_api(endpoint: str, method: str = "GET", timeout: int = 5):
+    """
+    Wysyła żądanie do FastAPI.
+    """
+    url = f"{API_BASE_URL}{endpoint}"
 
     try:
         response = requests.get(url, timeout=5)
         return response.json()
-
     except requests.exceptions.RequestException as error:
         return {
             "ok": False,
             "message": "Nie udało się pobrać logów",
             "error": str(error),
-            "logs": [],
+            "message": "Nie udało się połączyć z FastAPI"
         }
-
-
-def show_result(result):
-    if result.get("ok"):
-        message = result.get("data", {}).get("message", "OK")
-        st.success(message)
-    else:
-        st.error("Błąd komunikacji z FastAPI")
-        st.code(result)
 
 
 def make_device_control(label: str, controller_type: str, ip_key: str, controller_id=None):
@@ -127,7 +122,7 @@ if "ip_rx_0" not in st.session_state:
     st.session_state["ip_rx_0"] = "localhost"
 
 
-top_cols = st.columns([1, 1, 1, 1])
+top_cols = st.columns([1, 1, 1, 1, 1])
 
 with top_cols[0]:
     ris_count = st.number_input(
@@ -167,24 +162,14 @@ with top_cols[2]:
 
 with top_cols[3]:
     if st.button("Stop all", use_container_width=True):
-        results = []
+        call_api("/stop/generator")
+        call_api("/stop/ris/0")
+        call_api("/stop/rx/0")
+        call_api("/stop/system")
+        st.toast("Wysłano komendy Stop all")
 
-        for i in range(int(rx_count)):
-            ip = st.session_state.get(f"ip_rx_{i}", st.session_state.get("ip_rx_0", ""))
-            results.append(call_api(ip, f"/stop/rx/{i}"))
-
-        for i in range(int(ris_count)):
-            ip = st.session_state.get(f"ip_ris_{i}", st.session_state.get("ip_ris_0", ""))
-            results.append(call_api(ip, f"/stop/ris/{i}"))
-
-        results.append(call_api(st.session_state["ip_generator"], "/stop/generator"))
-        results.append(call_api(st.session_state["ip_system"], "/stop/system"))
-
-        st.write("Wynik Stop all:")
-        st.json(results)
-
-
-st.divider()
+with top_cols[3]:
+    st.markdown(f"API: `{API_BASE_URL}`")
 
 
 main_cols = st.columns(3)
@@ -199,106 +184,31 @@ with main_cols[0]:
 with main_cols[1]:
     st.markdown("## RIS")
 
-    for i in range(int(ris_count)):
-        key = f"ip_ris_{i}"
+    ris_count = st.slider(
+        "Liczba RIS",
+        min_value=1,
+        max_value=4,
+        value=1,
+        key="ris_count"
+    )
 
-        if key not in st.session_state:
-            st.session_state[key] = st.session_state.get("ip_ris_0", "localhost")
+    for i in range(ris_count):
+        make_device_control(f"RIS {i}", "ris", i)
 
-        make_device_control(f"RIS {i}", "ris", key, i)
 
 with main_cols[2]:
     st.markdown("## RX")
 
-    for i in range(int(rx_count)):
-        key = f"ip_rx_{i}"
-
-        if key not in st.session_state:
-            st.session_state[key] = st.session_state.get("ip_rx_0", "localhost")
-
-        make_device_control(f"RX {i}", "rx", key, i)
-
-#Logi
-
-st.divider()
-st.markdown("## Logi")
-
-log_sources = {
-    "System Controller": {
-        "ip_key": "ip_system",
-        "controller": "system",
-    },
-    "Generator Controller": {
-        "ip_key": "ip_generator",
-        "controller": "generator",
-    },
-}
-
-for i in range(int(ris_count)):
-    log_sources[f"RIS {i}"] = {
-        "ip_key": f"ip_ris_{i}",
-        "controller": f"ris_{i}",
-    }
-
-for i in range(int(rx_count)):
-    log_sources[f"RX {i}"] = {
-        "ip_key": f"ip_rx_{i}",
-        "controller": f"rx_{i}",
-    }
-
-
-log_cols = st.columns([1, 1, 1])
-
-with log_cols[0]:
-    selected_log_label = st.selectbox(
-        "Kontroler",
-        options=list(log_sources.keys()),
+    rx_count = st.slider(
+        "Liczba RX",
+        min_value=1,
+        max_value=4,
+        value=1,
+        key="rx_count"
     )
 
-with log_cols[1]:
-    log_lines = st.number_input(
-        "Liczba linii",
-        min_value=10,
-        max_value=1000,
-        value=100,
-        step=10,
-    )
-
-with log_cols[2]:
-    refresh_logs = st.button("Odśwież logi", use_container_width=True)
+    for i in range(rx_count):
+        make_device_control(f"RX {i}", "rx", i)
 
 
-selected_log = log_sources[selected_log_label]
-selected_ip = st.session_state.get(selected_log["ip_key"], "")
-selected_controller = selected_log["controller"]
-
-st.caption(
-    f"Endpoint logów: "
-    f"{api_url(selected_ip, DEFAULT_PORT, f'/logs?controller={selected_controller}&lines={int(log_lines)}')}"
-    if selected_ip else
-    "Endpoint logów: uzupełnij IP"
-)
-
-if refresh_logs:
-    st.session_state["last_logs"] = call_logs(
-        ip=selected_ip,
-        controller_name=selected_controller,
-        port=DEFAULT_PORT,
-        lines=int(log_lines),
-    )
-
-logs_result = st.session_state.get("last_logs")
-
-if logs_result is not None:
-    if not logs_result.get("ok", False):
-        st.error(logs_result.get("message", "Nie udało się pobrać logów"))
-        if "error" in logs_result:
-            st.code(logs_result["error"], language="text")
-    else:
-        logs = logs_result.get("logs", [])
-        if logs:
-            st.code("\n".join(logs), language="text")
-        else:
-            st.info("Brak logów dla wybranego kontrolera.")
-else:
-    st.info("Kliknij `Odśwież logi`, żeby pobrać ostatnie linie z terminala kontrolera.")
+show_status()

@@ -4,20 +4,18 @@ import threading
 from collections import deque
 from pathlib import Path
 from typing import Dict, Optional
-
 from fastapi import FastAPI
 
 
 app = FastAPI()
 
-BASE_DIR = Path(__file__).resolve().parent
-PYTHON_BIN = sys.executable
+TEST_MODE = True
 
 processes: Dict[str, subprocess.Popen] = {}
 logs: Dict[str, deque] = {}
 
 
-def process_key(controller_type: str, controller_id: Optional[int] = None) -> str:
+def make_key(controller_type, controller_id=None):
     if controller_id is None:
         return controller_type
     return f"{controller_type}_{controller_id}"
@@ -179,6 +177,110 @@ def start_rx(controller_id: int):
 @app.get("/stop/rx/{controller_id}")
 def stop_rx(controller_id: int):
     return stop_controller("rx", controller_id)
+
+
+@app.post("/git/pull")
+async def git_pull():
+    """
+    Wykonuje git pull w folderze projektu na hoście,
+    na którym uruchomiony jest FastAPI.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "pull"],
+            cwd=PROJECT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "Git pull completed successfully",
+                "project_dir": str(PROJECT_DIR),
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+
+        return {
+            "success": False,
+            "message": "Git pull failed",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "message": "Git pull timeout exceeded",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": "",
+            "stderr": "The git pull command took too long and was interrupted.",
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": "Git pull could not be executed",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": "",
+            "stderr": str(error),
+        }
+
+
+@app.post("/git/pull")
+async def git_pull():
+    """
+    Wykonuje git pull w folderze projektu na hoście,
+    na którym uruchomiony jest FastAPI.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "pull"],
+            cwd=PROJECT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "Git pull completed successfully",
+                "project_dir": str(PROJECT_DIR),
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+
+        return {
+            "success": False,
+            "message": "Git pull failed",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "message": "Git pull timeout exceeded",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": "",
+            "stderr": "The git pull command took too long and was interrupted.",
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": "Git pull could not be executed",
+            "project_dir": str(PROJECT_DIR),
+            "stdout": "",
+            "stderr": str(error),
+        }
 
 
 @app.get("/status")
