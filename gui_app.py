@@ -195,14 +195,22 @@ with top_cols[3]:
     st.markdown(f"API system: `{api_url(st.session_state['ip_system'], session_port('ip_system'), '')}`")
 
 with top_cols[4]:
-    if st.button("Git pull", use_container_width=True):
-        result = call_api(
-            st.session_state["ip_system"],
-            "/git/pull",
-            session_port("ip_system"),
-            method="GET",
-        )
-        show_result(result)
+    if st.button("Git Pull", use_container_width=True):
+        results = []
+
+        results.append(call_api(st.session_state["ip_generator"], "/git/pull", session_port("ip_generator")))
+
+        for i in range(int(ris_count)):
+            ip = st.session_state.get(f"ip_ris_{i}", st.session_state.get("ip_ris_0", ""))
+            results.append(call_api(ip, f"/git/pull", session_port(f"ip_ris_{i}")))
+
+        for i in range(int(rx_count)):
+            ip = st.session_state.get(f"ip_rx_{i}", st.session_state.get("ip_rx_0", ""))
+            results.append(call_api(ip, f"/git/pull", session_port(f"ip_rx_{i}")))
+
+        results.append(call_api(st.session_state["ip_system"], "/git/pull", session_port("ip_system")))
+        st.toast("Zrealizowano pull")
+        st.json(results)
 
 
 main_cols = st.columns(3)
