@@ -200,7 +200,7 @@ with top_cols[4]:
             st.session_state["ip_system"],
             "/git/pull",
             session_port("ip_system"),
-            method="POST",
+            method="GET",
         )
         show_result(result)
 
